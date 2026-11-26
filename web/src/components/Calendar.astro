@@ -1,0 +1,56 @@
+---
+import type { Game } from '../lib/wp';
+import { groupByWeek } from '../lib/dates';
+import GameCard from './GameCard.astro';
+
+interface Props { games: Game[] }
+const weeks = groupByWeek(Astro.props.games);
+---
+{weeks.length === 0 && <p class="empty">No upcoming releases here yet. The calendar refills every morning.</p>}
+
+<div class="calendar">
+  {weeks.map((week) => (
+    <section class="week" aria-labelledby={`w-${week.start}`}>
+      <header class="spine">
+        <h2 id={`w-${week.start}`}>{week.range}</h2>
+        <p>{week.label} · {week.items.length} {week.items.length === 1 ? 'release' : 'releases'}</p>
+      </header>
+      <div class="grid">
+        {week.items.map((game) => <GameCard game={game} />)}
+      </div>
+    </section>
+  ))}
+</div>
+
+<style>
+  .week {
+    display: grid;
+    grid-template-columns: 13rem 1fr;
+    gap: 2rem;
+    padding: 2.25rem 0;
+    border-top: 1px solid var(--line);
+  }
+  .spine { position: sticky; top: 1.5rem; align-self: start; }
+  .spine h2 {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 1.9rem;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    margin: 0;
+  }
+  .spine p { margin: 0.4rem 0 0; color: var(--muted); font-size: 0.9rem; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+    gap: 1.75rem 1.25rem;
+  }
+  .empty { color: var(--muted); }
+
+  @media (max-width: 44rem) {
+    .week { grid-template-columns: 1fr; gap: 1rem; padding: 1.75rem 0; }
+    .spine { position: static; }
+    .spine h2 { font-size: 1.5rem; }
+    .grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>

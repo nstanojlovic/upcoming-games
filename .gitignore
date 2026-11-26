@@ -1,0 +1,18 @@
+# WordPress core and third-party plugins are not ours to version.
+# Only the games-core plugin is tracked.
+/cms/*
+!/cms/wp-content/
+/cms/wp-content/*
+!/cms/wp-content/plugins/
+/cms/wp-content/plugins/*
+!/cms/wp-content/plugins/games-core/
+
+# Astro
+/web/node_modules/
+/web/dist/
+/web/.astro/
+/web/.env
+
+.DS_Store
+.idea
+.vscode

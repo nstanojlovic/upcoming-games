@@ -1,0 +1,17 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "games-core/countdown",
+	"title": "Release countdown",
+	"category": "widgets",
+	"icon": "clock",
+	"description": "Days until this game's release date, taken from the Game details box.",
+	"textdomain": "games-core",
+	"usesContext": [ "postId", "postType" ],
+	"attributes": {
+		"label": { "type": "string", "default": "Out in" }
+	},
+	"supports": { "html": false, "multiple": false, "align": false },
+	"editorScript": "file:./index.js",
+	"render": "file:./render.php"
+}

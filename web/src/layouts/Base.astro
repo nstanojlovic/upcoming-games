@@ -1,0 +1,157 @@
+---
+import { getPlatforms } from '../lib/wp';
+
+interface Props {
+  title: string;
+  description?: string;
+  image?: string;
+}
+
+const { title, description = 'Upcoming video game releases for the next 90 days, week by week.', image } = Astro.props;
+const fullTitle = title === 'Upcoming' ? 'Upcoming: game releases, week by week' : `${title} · Upcoming`;
+const platforms = (await getPlatforms()).slice(0, 6);
+const current = Astro.url.pathname;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>{fullTitle}</title>
+  <meta name="description" content={description} />
+  <meta property="og:title" content={fullTitle} />
+  <meta property="og:description" content={description} />
+  {image && <meta property="og:image" content={image} />}
+  <link rel="canonical" href={new URL(current, Astro.site)} />
+  <link rel="preconnect" href="https://fonts.bunny.net" />
+  <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600|unbounded:600,800&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <a href="/" class="wordmark">Upcoming</a>
+    <nav aria-label="Platforms">
+      {platforms.map((p) => (
+        <a href={`/platform/${p.slug}/`} aria-current={current.startsWith(`/platform/${p.slug}`) ? 'page' : undefined}>{p.name}</a>
+      ))}
+    </nav>
+  </header>
+
+  <main id="main">
+    <slot />
+  </main>
+
+  <footer class="site-footer">
+    <p>
+      Release data from <a href="https://www.igdb.com" rel="noopener">IGDB.com</a>. Dates change; check the store before you plan a day off.
+    </p>
+    <p>
+      Built by <a href="https://anonemus.dev">Nemanja Stanojlović</a> with WordPress and Astro.
+      <a href="https://github.com/nstanojlovic/upcoming-games">Source on GitHub</a>
+    </p>
+  </footer>
+
+  <script>
+    // Keep countdowns honest between rebuilds: recount from today's date in the browser.
+    const DAY = 86_400_000;
+    const today = new Date();
+    const t0 = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+
+    const days = (ymd: string) => {
+      const [y, m, d] = ymd.split('-').map(Number);
+      return Math.round((Date.UTC(y, m - 1, d) - t0) / DAY);
+    };
+
+    // Our own countdowns (hero, cards).
+    document.querySelectorAll<HTMLElement>('[data-countdown]').forEach((el) => {
+      const n = days(el.dataset.countdown!);
+      const num = el.querySelector('[data-num]');
+      const unit = el.querySelector('[data-unit]');
+      if (num && unit) {
+        num.textContent = n <= 0 ? '0' : String(n);
+        unit.textContent = n <= 0 ? 'Out today' : n === 1 ? 'day to go' : 'days to go';
+      } else {
+        el.textContent = n <= 0 ? 'Out today' : n === 1 ? 'Tomorrow' : `In ${n} days`;
+      }
+    });
+
+    // The Gutenberg "Release countdown" block, rendered by WordPress.
+    document.querySelectorAll<HTMLElement>('.games-countdown[data-label] time').forEach((time) => {
+      const n = days(time.getAttribute('datetime')!);
+      const label = time.parentElement!.dataset.label;
+      const strong = document.createElement('strong');
+      strong.textContent = n <= 0 ? 'Out now' : `${label} ${n} ${n === 1 ? 'day' : 'days'}`;
+      time.before(strong, ' ');
+    });
+  </script>
+</body>
+</html>
+
+<style is:global>
+  :root {
+    --paper: #EEF0F5;
+    --raised: #F8F9FC;
+    --ink: #151824;
+    --muted: #5E6578;
+    --line: #D5D9E3;
+    --accent: #5B3DF5;
+    --display: 'Unbounded', system-ui, sans-serif;
+    --text: 'Instrument Sans', system-ui, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #10121A;
+      --raised: #171A25;
+      --ink: #E8EAF2;
+      --muted: #9AA1B5;
+      --line: #262A38;
+      --accent: #A08FFF;
+    }
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html { background: var(--paper); color: var(--ink); }
+
+  body {
+    margin: 0;
+    font-family: var(--text);
+    font-size: 1.0625rem;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  img { display: block; max-width: 100%; height: auto; }
+
+  a { color: inherit; text-underline-offset: 0.18em; }
+  a:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+  .skip { position: absolute; left: -999px; }
+  .skip:focus { left: 1rem; top: 1rem; background: var(--raised); padding: 0.5rem 0.75rem; z-index: 10; }
+
+  .wrap, main { max-width: 76rem; margin: 0 auto; padding: 0 1.5rem; }
+
+  .site-header {
+    max-width: 76rem; margin: 0 auto; padding: 1.5rem;
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.75rem 2rem;
+  }
+
+  .wordmark {
+    font-family: var(--display); font-weight: 800; font-size: 1.15rem;
+    text-decoration: none; letter-spacing: -0.02em;
+  }
+
+  .site-header nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; font-size: 0.95rem; }
+  .site-header nav a { color: var(--muted); text-decoration: none; }
+  .site-header nav a:hover, .site-header nav a[aria-current='page'] { color: var(--ink); text-decoration: underline; }
+
+  .site-footer {
+    max-width: 76rem; margin: 5rem auto 0; padding: 1.5rem 1.5rem 3rem;
+    border-top: 1px solid var(--line); color: var(--muted); font-size: 0.9rem;
+  }
+  .site-footer p { margin: 0.25rem 0; max-width: 60ch; }
+  .site-footer a { color: var(--ink); }
+</style>
