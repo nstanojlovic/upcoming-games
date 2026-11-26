@@ -1,28 +1,122 @@
 ---
-import type { Game } from '../lib/wp';
+import type { Game, Term } from '../lib/wp';
 import { groupByWeek } from '../lib/dates';
 import GameCard from './GameCard.astro';
 
 interface Props { games: Game[] }
-const weeks = groupByWeek(Astro.props.games);
----
-{weeks.length === 0 && <p class="empty">No upcoming releases here yet. The calendar refills every morning.</p>}
+const { games } = Astro.props;
+const weeks = groupByWeek(games);
 
-<div class="calendar">
-  {weeks.map((week) => (
-    <section class="week" aria-labelledby={`w-${week.start}`}>
-      <header class="spine">
-        <h2 id={`w-${week.start}`}>{week.range}</h2>
-        <p>{week.label} · {week.items.length} {week.items.length === 1 ? 'release' : 'releases'}</p>
-      </header>
-      <div class="grid">
-        {week.items.map((game) => <GameCard game={game} />)}
-      </div>
-    </section>
-  ))}
+// Genres present in this list, most common first.
+const genreCounts = new Map<string, Term & { count: number }>();
+for (const g of games) for (const genre of g.genres) {
+  const e = genreCounts.get(genre.slug) ?? { ...genre, count: 0 };
+  e.count++;
+  genreCounts.set(genre.slug, e);
+}
+const genres = [...genreCounts.values()].sort((a, b) => b.count - a.count);
+---
+<div class="calendar-wrap" data-calendar>
+  {genres.length > 1 && (
+    <div class="filters" role="group" aria-label="Filter by genre">
+      {genres.map((g) => (
+        <button type="button" class="chip" data-genre={g.slug} aria-pressed="false">
+          {g.name} <span class="n">{g.count}</span>
+        </button>
+      ))}
+      <button type="button" class="clear" data-clear hidden>Show all</button>
+    </div>
+  )}
+
+  <p class="status" aria-live="polite" data-status></p>
+
+  {weeks.length === 0 && <p class="empty">No upcoming releases here yet. The calendar refills every morning.</p>}
+
+  <div class="calendar">
+    {weeks.map((week) => (
+      <section class="week" aria-labelledby={`w-${week.start}`} data-week>
+        <header class="spine">
+          <h2 id={`w-${week.start}`}>{week.range}</h2>
+          <p>{week.label} · <span data-week-count>{week.items.length}</span> <span data-week-noun>{week.items.length === 1 ? 'release' : 'releases'}</span></p>
+        </header>
+        <div class="grid">
+          {week.items.map((game) => <GameCard game={game} />)}
+        </div>
+      </section>
+    ))}
+  </div>
+
+  <p class="empty" data-none hidden>Nothing in these genres in the next 90 days. <button type="button" class="link" data-clear>Show all games</button></p>
 </div>
 
+<script>
+  document.querySelectorAll<HTMLElement>('[data-calendar]').forEach((root) => {
+    const chips = [...root.querySelectorAll<HTMLButtonElement>('.chip')];
+    const clears = root.querySelectorAll<HTMLButtonElement>('[data-clear]');
+    const clearChip = root.querySelector<HTMLButtonElement>('.clear');
+    const status = root.querySelector<HTMLElement>('[data-status]')!;
+    const none = root.querySelector<HTMLElement>('[data-none]')!;
+    if (!chips.length) return;
+
+    const selected = new Set(new URLSearchParams(location.search).getAll('genre'));
+
+    function apply(updateUrl = true) {
+      chips.forEach((c) => c.setAttribute('aria-pressed', String(selected.has(c.dataset.genre!))));
+      let total = 0;
+
+      root.querySelectorAll<HTMLElement>('[data-week]').forEach((week) => {
+        let visible = 0;
+        week.querySelectorAll<HTMLElement>('.card').forEach((card) => {
+          const genres = (card.dataset.genres ?? '').split(' ');
+          const show = selected.size === 0 || genres.some((g) => selected.has(g));
+          card.hidden = !show;
+          if (show) visible++;
+        });
+        week.hidden = visible === 0;
+        week.querySelector('[data-week-count]')!.textContent = String(visible);
+        week.querySelector('[data-week-noun]')!.textContent = visible === 1 ? 'release' : 'releases';
+        total += visible;
+      });
+
+      if (clearChip) clearChip.hidden = selected.size === 0;
+      none.hidden = total > 0;
+      status.textContent = selected.size ? `Showing ${total} ${total === 1 ? 'game' : 'games'}` : '';
+
+      if (updateUrl) {
+        const url = new URL(location.href);
+        url.searchParams.delete('genre');
+        selected.forEach((g) => url.searchParams.append('genre', g));
+        history.replaceState(null, '', url);
+      }
+    }
+
+    chips.forEach((chip) => chip.addEventListener('click', () => {
+      const g = chip.dataset.genre!;
+      selected.has(g) ? selected.delete(g) : selected.add(g);
+      apply();
+    }));
+
+    clears.forEach((b) => b.addEventListener('click', () => { selected.clear(); apply(); }));
+
+    apply(false);
+  });
+</script>
+
 <style>
+  .filters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0 1.25rem; }
+  .chip, .clear {
+    font: inherit; font-size: 0.9rem; cursor: pointer;
+    padding: 0.35rem 0.8rem; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--raised); color: var(--ink);
+  }
+  .chip:hover { border-color: var(--muted); }
+  .chip[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+  .chip .n { opacity: 0.6; font-variant-numeric: tabular-nums; margin-left: 0.15rem; }
+  .clear { background: none; border-color: transparent; color: var(--muted); text-decoration: underline; }
+  .clear[hidden] { display: none; }
+  .chip:focus-visible, .clear:focus-visible, .link:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .status { min-height: 1.4em; margin: 0 0 0.5rem; color: var(--muted); font-size: 0.9rem; }
+
   .week {
     display: grid;
     grid-template-columns: 13rem 1fr;
@@ -30,6 +124,7 @@ const weeks = groupByWeek(Astro.props.games);
     padding: 2.25rem 0;
     border-top: 1px solid var(--line);
   }
+  .week[hidden] { display: none; }
   .spine { position: sticky; top: 1.5rem; align-self: start; }
   .spine h2 {
     font-family: var(--display);
@@ -46,8 +141,12 @@ const weeks = groupByWeek(Astro.props.games);
     gap: 1.75rem 1.25rem;
   }
   .empty { color: var(--muted); }
+  .empty[hidden] { display: none; }
+  .link { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
 
   @media (max-width: 44rem) {
+    .filters { flex-wrap: nowrap; overflow-x: auto; margin-inline: -1.5rem; padding: 0 1.5rem 0.25rem; scrollbar-width: none; }
+    .chip, .clear { flex: none; }
     .week { grid-template-columns: 1fr; gap: 1rem; padding: 1.75rem 0; }
     .spine { position: static; }
     .spine h2 { font-size: 1.5rem; }

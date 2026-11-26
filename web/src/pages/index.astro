@@ -3,6 +3,7 @@ import Base from '../layouts/Base.astro';
 import Calendar from '../components/Calendar.astro';
 import { getGames } from '../lib/wp';
 import { daysUntil, formatDate } from '../lib/dates';
+import { shortName } from '../lib/platforms';
 
 const games = await getGames();
 
@@ -27,7 +28,7 @@ const n = next ? daysUntil(next.releaseDate) : 0;
         </p>
         <p class="when">
           {formatDate(next.releaseDate, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          {next.platforms.length > 0 && <> on {next.platforms.map((p) => p.name).join(', ')}</>}
+          {next.platforms.length > 0 && <> on {next.platforms.map((p) => shortName(p.name)).join(', ')}</>}
         </p>
         {next.excerpt && <p class="excerpt">{next.excerpt}</p>}
       </div>

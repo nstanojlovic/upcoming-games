@@ -63,6 +63,26 @@ final class PostTypes {
 			] );
 		}
 
+		register_post_meta( 'game', 'stores', [
+			'type'          => 'array',
+			'description'   => 'Store pages, e.g. [{ store: "steam", url: "https://..." }]. Synced from IGDB.',
+			'single'        => true,
+			'default'       => [],
+			'auth_callback' => fn () => current_user_can( 'edit_posts' ),
+			'show_in_rest'  => [
+				'schema' => [
+					'type'  => 'array',
+					'items' => [
+						'type'       => 'object',
+						'properties' => [
+							'store' => [ 'type' => 'string' ],
+							'url'   => [ 'type' => 'string', 'format' => 'uri' ],
+						],
+					],
+				],
+			],
+		] );
+
 		foreach ( self::META as $key => $args ) {
 			register_post_meta( 'game', $key, [
 				'type'          => $args['type'],

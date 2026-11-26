@@ -1,0 +1,54 @@
+---
+/**
+ * "Where to get it" buttons. Generic bag icon + store name
+ * (store logos are trademarks, so no brand marks here).
+ */
+interface Props { stores: { store: string; url: string }[]; title: string }
+const { stores, title } = Astro.props;
+
+const NAMES: Record<string, string> = {
+  steam: 'Steam',
+  epic: 'Epic Games Store',
+  gog: 'GOG',
+  playstation: 'PlayStation Store',
+  xbox: 'Xbox Store',
+  microsoft: 'Microsoft Store',
+  itch: 'itch.io',
+  apple: 'App Store',
+  'google-play': 'Google Play',
+};
+---
+{stores.length > 0 && (
+  <section class="stores" aria-labelledby="stores-title">
+    <h2 id="stores-title">Wishlist or pre-order</h2>
+    <ul>
+      {stores.map(({ store, url }) => (
+        <li>
+          <a href={url} rel="noopener" class="store" aria-label={`${title} on ${NAMES[store] ?? store}`}>
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 8h14l-1.2 11.2a1.5 1.5 0 0 1-1.5 1.3H7.7a1.5 1.5 0 0 1-1.5-1.3L5 8Z" />
+              <path d="M9 10V7a3 3 0 0 1 6 0v3" />
+            </svg>
+            <span>View on <strong>{NAMES[store] ?? store}</strong></span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+)}
+
+<style>
+  .stores { margin: 0 0 2rem; }
+  h2 { font-size: 1rem; font-weight: 600; margin: 0 0 0.75rem; }
+  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .store {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.6rem 1rem; border-radius: 6px;
+    border: 1px solid var(--line); background: var(--raised);
+    text-decoration: none; font-size: 0.95rem;
+  }
+  .store strong { font-weight: 600; }
+  .store:hover { border-color: var(--accent); color: var(--accent); }
+  li:first-child .store { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+  li:first-child .store:hover { filter: brightness(1.08); color: var(--paper); }
+</style>

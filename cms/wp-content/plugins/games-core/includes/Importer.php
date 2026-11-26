@@ -178,6 +178,10 @@ final class Importer {
 		update_post_meta( $post_id, 'release_date', $game['release_date'] );
 		update_post_meta( $post_id, 'cover_url', esc_url_raw( $game['cover_url'] ) );
 		update_post_meta( $post_id, 'anticipation', $game['anticipation'] );
+		update_post_meta( $post_id, 'stores', array_map(
+			fn ( $s ) => [ 'store' => sanitize_key( $s['store'] ), 'url' => esc_url_raw( $s['url'] ) ],
+			$game['stores']
+		) );
 
 		// Fill the trailer from IGDB, but never replace one an editor picked.
 		if ( $game['trailer_url'] && ! get_post_meta( $post_id, 'trailer_url', true ) ) {

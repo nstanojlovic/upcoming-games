@@ -25,6 +25,7 @@ export type Game = {
   sourceUrl: string;
   platforms: Term[];
   genres: Term[];
+  stores: { store: string; url: string }[];
 };
 
 async function getAll<T>(path: string, params: Record<string, string> = {}): Promise<T[]> {
@@ -104,6 +105,7 @@ async function load(): Promise<Game[]> {
         sourceUrl: m.source_url ?? '',
         platforms: (g.platform ?? []).map((id: number) => platformMap.get(id)).filter(Boolean),
         genres: (g.genre ?? []).map((id: number) => genreMap.get(id)).filter(Boolean),
+        stores: Array.isArray(m.stores) ? m.stores.filter((s: any) => s?.store && /^https?:\/\//.test(s?.url ?? '')) : [],
       };
     })
     .filter((g) => g.releaseDate && g.releaseDate >= today)

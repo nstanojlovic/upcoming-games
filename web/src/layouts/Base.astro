@@ -1,5 +1,6 @@
 ---
 import { getPlatforms } from '../lib/wp';
+import PlatformIcon from '../components/PlatformIcon.astro';
 
 interface Props {
   title: string;
@@ -34,7 +35,7 @@ const current = Astro.url.pathname;
     <a href="/" class="wordmark">Upcoming</a>
     <nav aria-label="Platforms">
       {platforms.map((p) => (
-        <a href={`/platform/${p.slug}/`} aria-current={current.startsWith(`/platform/${p.slug}`) ? 'page' : undefined}>{p.name}</a>
+        <a href={`/platform/${p.slug}/`} aria-current={current.startsWith(`/platform/${p.slug}`) ? 'page' : undefined}><PlatformIcon name={p.name} /></a>
       ))}
     </nav>
   </header>

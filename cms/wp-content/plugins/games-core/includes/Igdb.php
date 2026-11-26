@@ -48,7 +48,8 @@ final class Igdb {
 			fields name, slug, url, summary, first_release_date, hypes,
 				cover.image_id, platforms.name, genres.name,
 				involved_companies.developer, involved_companies.publisher, involved_companies.company.name,
-				websites.url, websites.type, videos.video_id;
+				websites.url, websites.type, videos.video_id,
+				external_games.url, external_games.uid, external_games.category, external_games.external_game_source;
 			where first_release_date >= {$from_ts} & first_release_date <= {$to_ts}
 				& parent_game = null & version_parent = null;
 			sort hypes desc;
@@ -56,6 +57,47 @@ final class Igdb {
 			APICALYPSE;
 
 		return array_map( [ $this, 'normalize' ], $this->post( '/games', $query ) );
+	}
+
+	/** Store links, in display order. IGDB website types and external game sources mapped to one key. */
+	private const WEBSITE_STORES = [ 13 => 'steam', 16 => 'epic', 17 => 'gog', 15 => 'itch', 10 => 'apple', 11 => 'apple', 12 => 'google-play' ];
+	private const EXTERNAL_STORES = [ 1 => 'steam', 26 => 'epic', 5 => 'gog', 36 => 'playstation', 31 => 'xbox', 11 => 'microsoft', 30 => 'itch', 13 => 'apple', 15 => 'google-play' ];
+	private const STORE_ORDER = [ 'steam', 'epic', 'gog', 'playstation', 'xbox', 'microsoft', 'itch', 'apple', 'google-play' ];
+
+	/** @return list<array{store:string, url:string}> */
+	private function stores( array $game ): array {
+		$found = [];
+
+		foreach ( $game['websites'] ?? [] as $site ) {
+			$store = self::WEBSITE_STORES[ (int) ( $site['type'] ?? 0 ) ] ?? null;
+			if ( $store && ! empty( $site['url'] ) ) {
+				$found[ $store ] ??= $site['url'];
+			}
+		}
+
+		foreach ( $game['external_games'] ?? [] as $ext ) {
+			$source = (int) ( $ext['external_game_source'] ?? $ext['category'] ?? 0 );
+			$store  = self::EXTERNAL_STORES[ $source ] ?? null;
+			$url    = $ext['url'] ?? '';
+
+			// Steam records often carry only the app ID.
+			if ( ! $url && $store === 'steam' && ! empty( $ext['uid'] ) && ctype_digit( (string) $ext['uid'] ) ) {
+				$url = "https://store.steampowered.com/app/{$ext['uid']}/";
+			}
+
+			if ( $store && $url ) {
+				$found[ $store ] ??= $url;
+			}
+		}
+
+		$stores = [];
+		foreach ( self::STORE_ORDER as $store ) {
+			if ( isset( $found[ $store ] ) && str_starts_with( $found[ $store ], 'http' ) ) {
+				$stores[] = [ 'store' => $store, 'url' => $found[ $store ] ];
+			}
+		}
+
+		return $stores;
 	}
 
 	private function normalize( array $game ): array {
@@ -85,6 +127,7 @@ final class Igdb {
 			'publisher'    => $company( 'publisher' ),
 			'website'      => $official[0]['url'] ?? '',
 			'trailer_url'  => $video ? "https://www.youtube.com/watch?v={$video}" : '',
+			'stores'       => $this->stores( $game ),
 		];
 	}
 
