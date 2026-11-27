@@ -1,14 +1,12 @@
 ---
 import type { Game } from '../lib/wp';
 import { formatDate } from '../lib/dates';
-import PlatformIcon from './PlatformIcon.astro';
+import PlatformList from './PlatformList.astro';
 
 interface Props { game: Game }
 const { game } = Astro.props;
-const shown = game.platforms.slice(0, 3);
-const more = game.platforms.length - shown.length;
 ---
-<article class="card" data-genres={game.genres.map((g) => g.slug).join(' ')}>
+<article class="card" data-genres={game.genres.map((g) => g.slug).join(' ')} data-platforms={game.platforms.map((p) => p.slug).join(' ')}>
   <a href={`/games/${game.slug}/`} class="card-link">
     <div class="cover">
       {game.coverSmall
@@ -20,12 +18,7 @@ const more = game.platforms.length - shown.length;
   <p class="date">
     <time datetime={game.releaseDate}>{formatDate(game.releaseDate, { weekday: 'short', day: 'numeric', month: 'short' })}</time>
   </p>
-  {game.platforms.length > 0 && (
-    <p class="platforms">
-      {shown.map((p) => <PlatformIcon name={p.name} />)}
-      {more > 0 && <span class="more" title={game.platforms.slice(3).map((p) => p.name).join(', ')}>+{more}</span>}
-    </p>
-  )}
+  {game.platforms.length > 0 && <p class="platforms"><PlatformList platforms={game.platforms} /></p>}
 </article>
 
 <style>
@@ -47,9 +40,5 @@ const more = game.platforms.length - shown.length;
   h3 { font-size: 1rem; font-weight: 600; line-height: 1.3; margin: 0.6rem 0 0.15rem; }
   .card-link:hover h3 { text-decoration: underline; }
   .date { margin: 0; font-size: 0.85rem; color: var(--muted); }
-  .platforms {
-    display: flex; flex-wrap: wrap; gap: 0.2rem 0.6rem;
-    margin: 0.35rem 0 0; font-size: 0.8rem; color: var(--muted);
-  }
-  .more { font-weight: 600; }
+  .platforms { margin: 0.3rem 0 0; font-size: 0.78rem; line-height: 1.35; color: var(--muted); }
 </style>

@@ -6,7 +6,7 @@
  */
 import type { Game } from '../lib/wp';
 import { daysUntil, formatDate } from '../lib/dates';
-import PlatformIcon from './PlatformIcon.astro';
+import PlatformList from './PlatformList.astro';
 
 interface Props { games: Game[] }
 const { games } = Astro.props;
@@ -33,7 +33,7 @@ const { games } = Astro.props;
                 </p>
                 <p class="when">{formatDate(game.releaseDate, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
                 {game.platforms.length > 0 && (
-                  <p class="platforms">{game.platforms.slice(0, 5).map((p) => <PlatformIcon name={p.name} />)}</p>
+                  <p class="platforms"><PlatformList platforms={game.platforms} /></p>
                 )}
                 <a class="cta" href={`/games/${game.slug}/`}>See the game</a>
               </div>

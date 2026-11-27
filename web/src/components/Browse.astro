@@ -1,29 +1,18 @@
 ---
 /**
- * Release listing (weeks, left) + sidebar (genres, platforms, month calendar, right).
- * Genre filtering runs in the browser; everything else is static HTML.
+ * Release listing (weeks, left) + Filter sidebar (platforms, genres, month calendar, right).
+ * Filtering runs in the browser (lib/filters.ts); everything else is static HTML.
  */
-import type { Game, Term } from '../lib/wp';
-import { getPlatforms } from '../lib/wp';
+import type { Game } from '../lib/wp';
 import { groupByWeek, monthsFor, weekStart } from '../lib/dates';
 import GameCard from './GameCard.astro';
-import PlatformIcon from './PlatformIcon.astro';
+import FilterPanel from './FilterPanel.astro';
 
 interface Props { games: Game[]; title?: string; currentPlatform?: string }
 const { games, title = 'Every release in the next 90 days', currentPlatform } = Astro.props;
 
 const weeks = groupByWeek(games);
 const months = monthsFor(games);
-const platforms = await getPlatforms();
-
-const genreCounts = new Map<string, Term & { count: number }>();
-for (const g of games) for (const genre of g.genres) {
-  const e = genreCounts.get(genre.slug) ?? { ...genre, count: 0 };
-  e.count++;
-  genreCounts.set(genre.slug, e);
-}
-const genres = [...genreCounts.values()].sort((a, b) => b.count - a.count);
-const VISIBLE = 8;
 const today = new Date().toISOString().slice(0, 10);
 ---
 <div class="browse" data-browse>
@@ -47,46 +36,13 @@ const today = new Date().toISOString().slice(0, 10);
       </section>
     ))}
 
-    <p class="empty" data-none hidden>Nothing in these genres in the next 90 days. <button type="button" class="link" data-clear>Show all games</button></p>
+    <p class="empty" data-none hidden>Nothing matches these filters in the next 90 days. <button type="button" class="link" data-clear>Clear filters</button></p>
   </div>
 
-  <aside class="sidebar" aria-label="Browse">
-    {genres.length > 1 && (
-      <section class="box">
-        <div class="box-head">
-          <h2 id="genres-title">Genres</h2>
-          <button type="button" class="link small" data-clear hidden>Clear</button>
-        </div>
-        <ul class="genres" role="group" aria-labelledby="genres-title" data-genres-list>
-          {genres.map((g, i) => (
-            <li data-extra={i >= VISIBLE ? '' : undefined}>
-              <button type="button" class="genre" data-genre={g.slug} aria-pressed="false">
-                <span>{g.name}</span><span class="n">{g.count}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        {genres.length > VISIBLE && (
-          <button type="button" class="link small more" data-more aria-expanded="false">
-            Show all {genres.length} genres
-          </button>
-        )}
-      </section>
+  <FilterPanel games={games} platforms={!currentPlatform}>
+    {currentPlatform && (
+      <section class="box"><a href="/" class="all">← All platforms</a></section>
     )}
-
-    <section class="box">
-      <h2>Platforms</h2>
-      <ul class="platforms">
-        {currentPlatform && <li><a href="/">All platforms</a></li>}
-        {platforms.map((p) => (
-          <li>
-            <a href={`/platform/${p.slug}/`} aria-current={p.slug === currentPlatform ? 'page' : undefined}>
-              <PlatformIcon name={p.name} /><span class="n">{p.count}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
-    </section>
 
     {months.length > 0 && (
       <section class="box cal" data-cal>
@@ -116,25 +72,23 @@ const today = new Date().toISOString().slice(0, 10);
         <p class="cal-note"><a href="/calendar/" class="full">Open the full calendar →</a></p>
       </section>
     )}
-  </aside>
+  </FilterPanel>
 </div>
 
 <script>
+  import { subscribe, clearFilters, isFiltered, matches } from '../lib/filters';
+
   document.querySelectorAll<HTMLElement>('[data-browse]').forEach((root) => {
-    /* Genre filter */
-    const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-genre]')];
     const status = root.querySelector<HTMLElement>('[data-status]')!;
     const none = root.querySelector<HTMLElement>('[data-none]')!;
-    const selected = new Set(new URLSearchParams(location.search).getAll('genre'));
+    root.querySelector('[data-clear]')?.addEventListener('click', clearFilters);
 
-    function apply(updateUrl = true) {
-      buttons.forEach((b) => b.setAttribute('aria-pressed', String(selected.has(b.dataset.genre!))));
+    subscribe((f) => {
       let total = 0;
-
       root.querySelectorAll<HTMLElement>('[data-week]').forEach((week) => {
         let visible = 0;
         week.querySelectorAll<HTMLElement>('.card').forEach((card) => {
-          const show = selected.size === 0 || (card.dataset.genres ?? '').split(' ').some((g) => selected.has(g));
+          const show = matches(card, f);
           card.hidden = !show;
           if (show) visible++;
         });
@@ -143,44 +97,11 @@ const today = new Date().toISOString().slice(0, 10);
         week.querySelector('[data-week-noun]')!.textContent = visible === 1 ? 'release' : 'releases';
         total += visible;
       });
-
-      root.querySelectorAll<HTMLElement>('.box [data-clear]').forEach((b) => (b.hidden = selected.size === 0));
       none.hidden = total > 0;
-      status.textContent = selected.size ? `${total} ${total === 1 ? 'game' : 'games'} in ${[...selected].length === 1 ? 'this genre' : 'these genres'}` : '';
-
-      // A selected genre hidden behind "Show all" stays visible.
-      root.querySelectorAll<HTMLElement>('[data-extra]').forEach((li) => {
-        if (selected.has(li.querySelector<HTMLElement>('[data-genre]')!.dataset.genre!)) li.dataset.pinned = '';
-        else delete li.dataset.pinned;
-      });
-
-      if (updateUrl) {
-        const url = new URL(location.href);
-        url.searchParams.delete('genre');
-        selected.forEach((g) => url.searchParams.append('genre', g));
-        history.replaceState(null, '', url);
-      }
-    }
-
-    buttons.forEach((b) => b.addEventListener('click', () => {
-      const g = b.dataset.genre!;
-      selected.has(g) ? selected.delete(g) : selected.add(g);
-      apply();
-    }));
-    root.querySelectorAll<HTMLButtonElement>('[data-clear]').forEach((b) => b.addEventListener('click', () => { selected.clear(); apply(); }));
-    apply(false);
-
-    /* "Show all genres" */
-    const more = root.querySelector<HTMLButtonElement>('[data-more]');
-    const list = root.querySelector<HTMLElement>('[data-genres-list]');
-    more?.addEventListener('click', () => {
-      const open = more.getAttribute('aria-expanded') !== 'true';
-      more.setAttribute('aria-expanded', String(open));
-      list?.toggleAttribute('data-open', open);
-      more.textContent = open ? 'Show fewer' : `Show all ${buttons.length} genres`;
+      status.textContent = isFiltered(f) ? `${total} ${total === 1 ? 'game matches' : 'games match'}` : '';
     });
 
-    /* Month calendar */
+    /* Mini month calendar */
     const cal = root.querySelector<HTMLElement>('[data-cal]');
     if (cal) {
       const months = [...cal.querySelectorAll<HTMLElement>('[data-month]')];
@@ -198,10 +119,10 @@ const today = new Date().toISOString().slice(0, 10);
       prev.addEventListener('click', () => show(i - 1));
       next.addEventListener('click', () => show(i + 1));
 
-      // Jumping to a week: if a genre filter hides it, clear the filter first.
+      // Jumping to a week: if the filters hide it, clear them first.
       cal.querySelectorAll<HTMLAnchorElement>('a.day').forEach((a) => a.addEventListener('click', () => {
         const week = root.querySelector<HTMLElement>(a.hash);
-        if (week?.hidden) { selected.clear(); apply(); }
+        if (week?.hidden) clearFilters();
         week?.classList.remove('flash');
         requestAnimationFrame(() => week?.classList.add('flash'));
       }));
@@ -248,38 +169,15 @@ const today = new Date().toISOString().slice(0, 10);
   .empty { color: var(--muted); }
   .empty[hidden] { display: none; }
 
-  /* Sidebar */
-  .sidebar { position: sticky; top: 1.5rem; display: grid; gap: 1rem; }
+  /* Sidebar boxes (inside FilterPanel) */
   .box { background: var(--raised); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.1rem 1.1rem; }
   .box h2 { font-size: 0.95rem; font-weight: 600; margin: 0 0 0.6rem; }
   .box-head { display: flex; align-items: baseline; justify-content: space-between; }
-  .box ul { list-style: none; margin: 0; padding: 0; }
-
-  .genres li[data-extra] { display: none; }
-  .genres[data-open] li[data-extra], .genres li[data-pinned] { display: block; }
-  .genre {
-    width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
-    font: inherit; font-size: 0.92rem; text-align: left; cursor: pointer;
-    padding: 0.35rem 0.55rem; margin: 0 -0.55rem; width: calc(100% + 1.1rem);
-    border: 0; border-radius: 6px; background: none; color: var(--ink);
-  }
-  .genre:hover { background: var(--line); }
-  .genre[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
-  .genre[aria-pressed='true'] .n { color: inherit; }
-  .n { color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
-
-  .platforms a {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 0.3rem 0; text-decoration: none; font-size: 0.92rem;
-  }
-  .platforms a:hover, .platforms a[aria-current='page'] { color: var(--accent-text); }
-  .platforms a[aria-current='page'] { font-weight: 600; }
+  .all { color: var(--accent-text); font-weight: 600; text-decoration: none; }
+  .all:hover { text-decoration: underline; }
 
   .link { font: inherit; color: var(--accent-text); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
-  .link[hidden] { display: none; }
-  .small { font-size: 0.85rem; }
-  .more { margin-top: 0.5rem; }
-  .genre:focus-visible, .link:focus-visible, .cal-nav button:focus-visible, .day:focus-visible {
+  .link:focus-visible, .cal-nav button:focus-visible, .day:focus-visible {
     outline: 3px solid var(--accent-text); outline-offset: 2px;
   }
 
@@ -307,11 +205,8 @@ const today = new Date().toISOString().slice(0, 10);
 
   @media (max-width: 60rem) {
     .browse { grid-template-columns: 1fr; gap: 1.5rem; }
-    .sidebar { position: static; order: -1; grid-template-columns: 1fr; }
-    .sidebar .cal, .sidebar .box:has(.platforms) { display: none; }
-    .genres { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-    .genres li[data-extra] { display: none; }
-    .genre { width: auto; margin: 0; border: 1px solid var(--line); border-radius: 999px; padding: 0.3rem 0.75rem; }
+    .browse > :global(.filter-panel) { order: -1; }
+    .cal { display: none; }
   }
 
   @media (max-width: 44rem) {

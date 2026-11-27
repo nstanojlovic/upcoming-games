@@ -1,13 +1,13 @@
 ---
 /**
  * Month grid for /calendar/: every release day shows its games
- * (most anticipated first). Platform filter runs in the browser (?platform=).
+ * (most anticipated first). Filter sidebar on the right (lib/filters.ts).
  * Below 44rem the grid turns into an agenda list of release days only.
  */
-import type { Game, Term } from '../lib/wp';
+import type { Game } from '../lib/wp';
 import type { CalendarMonth } from '../lib/dates';
 import { formatDate } from '../lib/dates';
-import PlatformIcon from './PlatformIcon.astro';
+import FilterPanel from './FilterPanel.astro';
 
 interface Props { month: CalendarMonth<Game>; months: CalendarMonth<Game>[]; currentKey: string }
 const { month, months, currentKey } = Astro.props;
@@ -17,13 +17,7 @@ const i = months.findIndex((m) => m.key === month.key);
 const prev = months[i - 1];
 const next = months[i + 1];
 
-const platformCounts = new Map<string, Term & { count: number }>();
-for (const week of month.weeks) for (const day of week) for (const g of day.items) for (const p of g.platforms) {
-  const e = platformCounts.get(p.slug) ?? { ...p, count: 0 };
-  e.count++;
-  platformCounts.set(p.slug, e);
-}
-const platforms = [...platformCounts.values()].sort((a, b) => b.count - a.count).slice(0, 8);
+const games = month.weeks.flat().flatMap((d) => d.items);
 const thumb = (g: Game) => g.cover.replace(/t_cover_big(_2x)?/, 't_cover_small_2x');
 const SHOW = 3; // games per day before "+N more"
 ---
@@ -44,66 +38,63 @@ const SHOW = 3; // games per day before "+N more"
     </nav>
   </header>
 
-  {platforms.length > 1 && (
-    <div class="filters" role="group" aria-label="Filter by platform">
-      <button type="button" class="chip" data-platform="" aria-pressed="true">All platforms</button>
-      {platforms.map((p) => (
-        <button type="button" class="chip" data-platform={p.slug} aria-pressed="false"><PlatformIcon name={p.name} /></button>
-      ))}
+  <div class="layout">
+    <div class="main">
+      <div class="grid" role="list">
+        <div class="dow" aria-hidden="true">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <span>{d}</span>)}</div>
+        {month.weeks.flat().map((day) => (
+          <section
+            role="listitem"
+            class:list={['day', { out: !day.inMonth, past: day.past, today: day.today, 'no-games': day.items.length === 0 }]}
+            aria-label={day.inMonth ? formatDate(day.date, { weekday: 'long', day: 'numeric', month: 'long' }) : undefined}
+            aria-hidden={day.inMonth ? undefined : 'true'}
+            data-day
+          >
+            <h2 class="date">
+              <span class="num">{day.day}</span>
+              <span class="long">{formatDate(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+              {day.today && <span class="today-tag">Today</span>}
+            </h2>
+            {day.items.length > 0 && (
+              <ul class="games">
+                {day.items.map((g, n) => (
+                  <li data-platforms={g.platforms.map((p) => p.slug).join(' ')} data-genres={g.genres.map((x) => x.slug).join(' ')} data-extra={n >= SHOW ? '' : undefined}>
+                    <a href={`/games/${g.slug}/`} title={g.platforms.map((p) => p.name).join(', ')}>
+                      {g.cover
+                        ? <img src={thumb(g)} alt="" width="45" height="64" loading="lazy" decoding="async" />
+                        : <span class="no-cover" aria-hidden="true">{g.title.slice(0, 1)}</span>}
+                      <span class="name">{g.title}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {day.items.length > SHOW && (
+              <button type="button" class="more" data-more aria-expanded="false">+{day.items.length - SHOW} more</button>
+            )}
+          </section>
+        ))}
+      </div>
+
+      <p class="empty" data-none hidden>Nothing matches these filters in {month.label}. <button type="button" class="link" data-reset>Clear filters</button></p>
+      {month.total === 0 && <p class="empty">No releases dated for {month.label} yet.</p>}
     </div>
-  )}
 
-  <div class="grid" role="list">
-    <div class="dow" aria-hidden="true">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <span>{d}</span>)}</div>
-    {month.weeks.flat().map((day) => (
-      <section
-        role="listitem"
-        class:list={['day', { out: !day.inMonth, past: day.past, today: day.today, empty: day.items.length === 0 }]}
-        aria-label={day.inMonth ? formatDate(day.date, { weekday: 'long', day: 'numeric', month: 'long' }) : undefined}
-        aria-hidden={day.inMonth ? undefined : 'true'}
-        data-day
-      >
-        <h2 class="date">
-          <span class="num">{day.day}</span>
-          <span class="long">{formatDate(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}</span>
-          {day.today && <span class="today-tag">Today</span>}
-        </h2>
-        {day.items.length > 0 && (
-          <ul class="games">
-            {day.items.map((g, n) => (
-              <li data-platforms={g.platforms.map((p) => p.slug).join(' ')} data-extra={n >= SHOW ? '' : undefined}>
-                <a href={`/games/${g.slug}/`} title={g.platforms.map((p) => p.name).join(', ')}>
-                  {g.cover
-                    ? <img src={thumb(g)} alt="" width="45" height="64" loading="lazy" decoding="async" />
-                    : <span class="no-cover" aria-hidden="true">{g.title.slice(0, 1)}</span>}
-                  <span class="name">{g.title}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-        {day.items.length > SHOW && (
-          <button type="button" class="more" data-more aria-expanded="false">+{day.items.length - SHOW} more</button>
-        )}
-      </section>
-    ))}
+    <FilterPanel games={games} />
   </div>
-
-  <p class="empty" data-none hidden>Nothing for this platform in {month.label}. <button type="button" class="link" data-reset>Show all platforms</button></p>
-  {month.total === 0 && <p class="empty">No releases dated for {month.label} yet.</p>}
 </div>
 
 <script>
+  import { subscribe, clearFilters, isFiltered, matches, withFilters } from '../lib/filters';
+
   document.querySelectorAll<HTMLElement>('[data-calendar]').forEach((root) => {
     const SHOW = 3;
-    const chips = [...root.querySelectorAll<HTMLButtonElement>('[data-platform]')];
     const days = [...root.querySelectorAll<HTMLElement>('[data-day]')];
     const none = root.querySelector<HTMLElement>('[data-none]')!;
-    let platform = new URLSearchParams(location.search).get('platform') ?? '';
-    if (platform && !chips.some((c) => c.dataset.platform === platform)) platform = '';
+    const links = [...root.querySelectorAll<HTMLAnchorElement>('.pager a')];
+    const bases = links.map((a) => a.getAttribute('href')!);
 
-    function apply(updateUrl = true) {
-      chips.forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.platform === platform)));
+    function apply(f = { platform: [] as string[], genre: [] as string[] }) {
       let total = 0;
 
       days.forEach((day) => {
@@ -111,12 +102,12 @@ const SHOW = 3; // games per day before "+N more"
         const open = day.hasAttribute('data-open');
         let visible = 0;
         items.forEach((li) => {
-          const match = !platform || li.dataset.platforms!.split(' ').includes(platform);
+          const match = matches(li, f);
           if (match) visible++;
           li.hidden = !match || (!open && visible > SHOW);
         });
         total += visible;
-        day.classList.toggle('empty', visible === 0);
+        day.classList.toggle('no-games', visible === 0);
 
         const more = day.querySelector<HTMLButtonElement>('[data-more]');
         if (more) {
@@ -128,31 +119,21 @@ const SHOW = 3; // games per day before "+N more"
 
       root.querySelector('[data-total]')!.textContent = String(total);
       root.querySelector('[data-total-noun]')!.textContent = total === 1 ? 'release' : 'releases';
-      none.hidden = total > 0 || !platform;
+      none.hidden = total > 0 || !isFiltered(f);
 
-      // Carry the filter over to the other months.
-      root.querySelectorAll<HTMLAnchorElement>('.pager a').forEach((a) => {
-        const url = new URL(a.href);
-        platform ? url.searchParams.set('platform', platform) : url.searchParams.delete('platform');
-        a.href = url.pathname + url.search;
-      });
-
-      if (updateUrl) {
-        const url = new URL(location.href);
-        platform ? url.searchParams.set('platform', platform) : url.searchParams.delete('platform');
-        history.replaceState(null, '', url);
-      }
+      // Carry the filters over to the other months.
+      links.forEach((a, i) => (a.href = withFilters(bases[i], f)));
     }
 
-    chips.forEach((c) => c.addEventListener('click', () => { platform = c.dataset.platform!; apply(); }));
-    root.querySelector('[data-reset]')?.addEventListener('click', () => { platform = ''; apply(); });
+    let current = { platform: [] as string[], genre: [] as string[] };
+    subscribe((f) => { current = f; apply(f); });
+    root.querySelector('[data-reset]')?.addEventListener('click', clearFilters);
     days.forEach((day) => day.querySelector('[data-more]')?.addEventListener('click', () => {
       day.toggleAttribute('data-open');
-      apply(false);
+      apply(current);
     }));
 
     root.classList.add('js');
-    apply(false);
   });
 </script>
 
@@ -177,13 +158,8 @@ const SHOW = 3; // games per day before "+N more"
   .tabs a[aria-current='page'] { background: var(--accent); color: var(--accent-ink); }
   .tabs .n { font-weight: 400; font-size: 0.78rem; opacity: 0.75; font-variant-numeric: tabular-nums; }
 
-  .filters { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1.25rem; }
-  .chip {
-    font: inherit; font-size: 0.88rem; cursor: pointer; color: var(--ink);
-    padding: 0.3rem 0.75rem; border: 1px solid var(--line); border-radius: 999px; background: var(--raised);
-  }
-  .chip:hover { border-color: var(--muted); }
-  .chip[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 1.75rem; align-items: start; }
+  .main { min-width: 0; }
 
   /* Grid */
   .grid {
@@ -219,7 +195,7 @@ const SHOW = 3; // games per day before "+N more"
 
   .more { font: inherit; font-size: 0.78rem; font-weight: 600; color: var(--accent-text); background: none; border: 0; padding: 0.25rem 0.2rem 0; cursor: pointer; text-decoration: underline; }
   .more[hidden] { display: none; }
-  .chip:focus-visible, .more:focus-visible, .link:focus-visible, .games a:focus-visible, .pager a:focus-visible, .tabs a:focus-visible {
+  .more:focus-visible, .link:focus-visible, .games a:focus-visible, .pager a:focus-visible, .tabs a:focus-visible {
     outline: 3px solid var(--accent-text); outline-offset: 2px;
   }
 
@@ -228,6 +204,8 @@ const SHOW = 3; // games per day before "+N more"
   .link { font: inherit; color: var(--accent-text); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
 
   @media (max-width: 60rem) {
+    .layout { grid-template-columns: 1fr; gap: 1rem; }
+    .layout > :global(.filter-panel) { order: -1; }
     .tabs { display: none; }
     .day { min-height: 7rem; }
     .games img, .no-cover { display: none; }
@@ -236,7 +214,7 @@ const SHOW = 3; // games per day before "+N more"
   /* Phones: agenda list of release days only */
   @media (max-width: 44rem) {
     .grid { display: block; background: none; border: 0; overflow: visible; }
-    .dow, .day.out, .day.empty { display: none; }
+    .dow, .day.out, .day.no-games { display: none; }
     .day { min-height: 0; padding: 1rem 0; border-top: 1px solid var(--line); background: none; }
     .day.today { box-shadow: none; }
     .num { display: none; }

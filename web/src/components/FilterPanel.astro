@@ -1,0 +1,190 @@
+---
+/**
+ * Right-hand "Filter" sidebar: collapsible checkbox groups (Platforms, Genres).
+ * State lives in the URL via lib/filters.ts; the views subscribe to it.
+ * Extra sidebar boxes (e.g. the mini calendar) go in the default slot.
+ */
+import type { Game, Term } from '../lib/wp';
+
+interface Props { games: Game[]; platforms?: boolean }
+const { games, platforms: showPlatforms = true } = Astro.props;
+
+type Option = Term & { count: number };
+function tally(pick: (g: Game) => Term[]): Option[] {
+  const map = new Map<string, Option>();
+  for (const g of games) for (const t of pick(g)) {
+    const e = map.get(t.slug) ?? { ...t, count: 0 };
+    e.count++;
+    map.set(t.slug, e);
+  }
+  return [...map.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+const groups = [
+  ...(showPlatforms ? [{ key: 'platform', label: 'Platforms', options: tally((g) => g.platforms).map((o) => ({ ...o, name: o.name.replace(/\s*\(Microsoft Windows\)/, '') })) }] : []),
+  { key: 'genre', label: 'Genres', options: tally((g) => g.genres) },
+].filter((g) => g.options.length > 1);
+
+const VISIBLE = 8;
+---
+<aside class="filter-panel" aria-label="Filters">
+  {groups.length > 0 && (
+    <details class="filter" open data-filter-root>
+      <summary class="filter-head">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M3.5 4h17a1 1 0 0 1 .78 1.63L15 13.4V19a1 1 0 0 1-.55.9l-3 1.5A1 1 0 0 1 10 20.5v-7.1L2.72 5.63A1 1 0 0 1 3.5 4Z" /></svg>
+        <span class="title">Filter</span>
+        <span class="active" data-filter-active hidden></span>
+        <svg class="chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6" /></svg>
+      </summary>
+
+      <button type="button" class="clear" data-filter-clear hidden>Clear all filters</button>
+
+      {groups.map((group) => (
+        <details class="group" open>
+          <summary>
+            {group.label}
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 15 6-6 6 6" /></svg>
+          </summary>
+          <ul data-group-list>
+            {group.options.map((o, i) => (
+              <li data-extra={i >= VISIBLE ? '' : undefined}>
+                <label>
+                  <input type="checkbox" name={group.key} value={o.slug} />
+                  <span class="box" aria-hidden="true" />
+                  <span class="name">{o.name}</span>
+                  <span class="n">{o.count}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          {group.options.length > VISIBLE && (
+            <button type="button" class="more" data-group-more aria-expanded="false">+ {group.options.length - VISIBLE} more</button>
+          )}
+        </details>
+      ))}
+    </details>
+  )}
+  <slot />
+</aside>
+
+<script>
+  import { subscribe, setFilters, clearFilters, isFiltered, type Filters } from '../lib/filters';
+
+  document.querySelectorAll<HTMLDetailsElement>('[data-filter-root]').forEach((root) => {
+    const boxes = [...root.querySelectorAll<HTMLInputElement>('input[type=checkbox]')];
+    const clear = root.querySelector<HTMLButtonElement>('[data-filter-clear]')!;
+    const active = root.querySelector<HTMLElement>('[data-filter-active]')!;
+    const narrow = matchMedia('(max-width: 60rem)');
+
+    // Desktop: always open. Phones/tablets: a collapsed "Filter" bar until tapped.
+    const fit = () => { root.open = !narrow.matches; };
+    fit();
+    narrow.addEventListener('change', fit);
+    root.querySelector('.filter-head')!.addEventListener('click', (e) => { if (!narrow.matches) e.preventDefault(); });
+
+    boxes.forEach((b) => b.addEventListener('change', () => {
+      const next: Filters = { platform: [], genre: [] };
+      boxes.filter((x) => x.checked).forEach((x) => next[x.name as keyof Filters].push(x.value));
+      setFilters(next);
+    }));
+    clear.addEventListener('click', clearFilters);
+
+    subscribe((f) => {
+      boxes.forEach((b) => {
+        b.checked = f[b.name as keyof Filters]?.includes(b.value) ?? false;
+        // A ticked option hidden behind "+ more" stays visible.
+        b.closest('li')!.toggleAttribute('data-pinned', b.checked);
+      });
+      const n = f.platform.length + f.genre.length;
+      clear.hidden = !isFiltered(f);
+      active.hidden = n === 0;
+      active.textContent = String(n);
+    });
+
+    root.querySelectorAll<HTMLButtonElement>('[data-group-more]').forEach((btn) => {
+      const list = btn.previousElementSibling as HTMLElement;
+      const label = btn.textContent;
+      btn.addEventListener('click', () => {
+        const open = btn.getAttribute('aria-expanded') !== 'true';
+        btn.setAttribute('aria-expanded', String(open));
+        list.toggleAttribute('data-open', open);
+        btn.textContent = open ? '− fewer' : label;
+      });
+    });
+  });
+</script>
+
+<style>
+  .filter-panel { position: sticky; top: 1.5rem; display: grid; gap: 1rem; align-content: start; }
+
+  .filter { background: var(--raised); border: 1px solid var(--line); border-radius: 10px; padding: 0.9rem 1.1rem 1rem; }
+  .filter-head {
+    display: flex; align-items: center; gap: 0.5rem; list-style: none; cursor: default;
+    font-size: 1.15rem; font-weight: 600; padding-bottom: 0.75rem; border-bottom: 1px solid var(--line);
+  }
+  .filter-head::-webkit-details-marker { display: none; }
+  .filter-head > svg:first-child { color: var(--accent-text); }
+  .active {
+    font-size: 0.75rem; font-weight: 700; min-width: 1.3rem; text-align: center;
+    background: var(--accent); color: var(--accent-ink); border-radius: 999px; padding: 0.05rem 0.4rem;
+  }
+  .active[hidden] { display: none; }
+  .chev { display: none; margin-left: auto; transition: transform 0.15s; }
+
+  .clear {
+    font: inherit; font-size: 0.85rem; color: var(--accent-text); background: none; border: 0; padding: 0;
+    margin-top: 0.75rem; text-decoration: underline; cursor: pointer;
+  }
+  .clear[hidden] { display: none; }
+
+  .group { border-bottom: 1px solid var(--line); padding: 0.85rem 0 0.75rem; }
+  .group:last-of-type { border-bottom: 0; padding-bottom: 0; }
+  .group summary {
+    display: inline-flex; align-items: center; gap: 0.4rem; list-style: none; cursor: pointer;
+    color: var(--accent-text); font-weight: 600; font-size: 0.95rem; margin-bottom: 0.5rem;
+  }
+  .group summary::-webkit-details-marker { display: none; }
+  .group:not([open]) summary { margin-bottom: 0; }
+  .group:not([open]) summary svg { transform: rotate(180deg); }
+
+  ul { list-style: none; margin: 0; padding: 0; }
+  li[data-extra] { display: none; }
+  ul[data-open] li[data-extra], li[data-pinned] { display: block; }
+
+  label {
+    display: flex; align-items: center; gap: 0.6rem; cursor: pointer;
+    padding: 0.28rem 0.4rem; margin: 0 -0.4rem; border-radius: 6px; font-size: 0.92rem;
+  }
+  label:hover { background: var(--line); }
+  input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .box {
+    flex: none; width: 1rem; height: 1rem; border-radius: 4px;
+    border: 1.5px solid var(--muted); background: var(--paper); display: grid; place-items: center;
+  }
+  input:checked + .box { background: var(--accent); border-color: var(--accent); }
+  input:checked + .box::after {
+    content: ''; width: 0.5rem; height: 0.28rem; margin-top: -0.12rem;
+    border: solid var(--accent-ink); border-width: 0 0 2px 2px; transform: rotate(-45deg);
+  }
+  input:checked ~ .name { font-weight: 600; }
+  input:focus-visible + .box { outline: 3px solid var(--accent-text); outline-offset: 2px; }
+  .name { flex: 1; min-width: 0; }
+  .n { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+
+  .more { font: inherit; font-size: 0.85rem; color: var(--muted); background: none; border: 0; padding: 0.3rem 0 0; cursor: pointer; }
+  .more:hover { color: var(--ink); }
+  .group summary:focus-visible, .more:focus-visible, .clear:focus-visible, .filter-head:focus-visible {
+    outline: 3px solid var(--accent-text); outline-offset: 2px; border-radius: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
+
+  /* Below 60rem the panel sits above the content as a collapsed "Filter" bar. */
+  @media (max-width: 60rem) {
+    .filter-panel { position: static; }
+    .filter-head { cursor: pointer; border-bottom: 0; padding-bottom: 0; }
+    .filter[open] .filter-head { border-bottom: 1px solid var(--line); padding-bottom: 0.75rem; }
+    .chev { display: block; }
+    .filter[open] .chev { transform: rotate(180deg); }
+  }
+</style>

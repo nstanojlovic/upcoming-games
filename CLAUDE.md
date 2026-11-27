@@ -31,8 +31,9 @@ upcoming-games/
         ├── lib/wp.ts            fetch + normalize from REST (getGames, getFeatured, getPlatforms, getNews)
         ├── lib/dates.ts         UTC date helpers, groupByWeek, monthsFor (sidebar calendar), calendarMonths (full month grids)
         ├── lib/platforms.ts     short platform labels + device family
+        ├── lib/filters.ts       browser filter state (platform + genre), synced to ?platform=&genre=, subscribe()/matches()
         ├── layouts/Base.astro   header/footer, color tokens, countdown script
-        ├── components/          FeaturedSlider, Browse (listing + sidebar + genre filter), GameCard, MonthCalendar, PlatformIcon, StoreButtons
+        ├── components/          FeaturedSlider, Browse (week listing), FilterPanel (right "Filter" sidebar), GameCard, MonthCalendar, PlatformList + PlatformIcon (gamepad glyph), StoreButtons
         └── pages/               index, games/[slug], platform/[slug], calendar/ + calendar/[YYYY-MM], news/ + news/[slug], 404
 ```
 
@@ -45,10 +46,10 @@ Importer rules: re-imports only refresh facts (date, cover, hero, anticipation, 
 ## Key decisions
 
 - **IGDB, not RAWG.** IGDB is free for non-commercial use under the Twitch Developer Service Agreement; commercial use needs a partnership (partner@igdb.com). The site must show "Data from IGDB.com" (footer does).
-- **No brand logos.** Platform icons and store buttons use generic device/bag icons plus text ("PS5", "View on Steam"). Console makers' and stores' logos are trademarks. Keep it that way.
+- **No brand logos.** Platforms show as one generic gamepad icon + names, releases.com style ("PS5 / Xbox Series / PC"); store buttons use a bag icon + text ("View on Steam"). Console makers' and stores' logos are trademarks. Keep it that way.
 - No Nintendo eShop links exist in IGDB.
 - Blocks have no build step on purpose (no npm needed for the plugin).
-- Astro is fully static; countdowns recount in the browser between builds. Genre filter is client-side with `?genre=` in the URL.
+- Astro is fully static; countdowns recount in the browser between builds. Filters (right sidebar, checkboxes: Platforms, Genres) are client-side via `lib/filters.ts`: OR within a group, AND across groups, kept in the URL and carried across calendar months. On platform pages the Platforms group is hidden. Below 60rem the sidebar becomes a collapsed "Filter" bar above the content.
 
 ## Design
 
@@ -77,6 +78,6 @@ Forge server `161.35.174.2` (user `forge`, his personal server, also hosts anone
 - Verify store buttons and slider artwork after a fresh import (both depend on fields added to the importer later; old posts need a re-import).
 - Verify the new slider + sidebar layout, `/calendar/` and `/news/` render correctly (written without a local preview).
 - Deploy (above). Then add the project to anonemus.dev `sideProjects`.
-- Site sections (header nav): **Releases** (`/`, game + platform pages), **Calendar** (month grid like releases.com, platform filter `?platform=`, agenda list on phones), **News** (plain WP posts, featured image + categories; delete the default "Hello world!" post).
+- Site sections (header nav): **Releases** (`/`, game + platform pages), **Calendar** (month grid like releases.com, same Filter sidebar, agenda list on phones), **News** (plain WP posts, featured image + categories; delete the default "Hello world!" post).
 - Possible next: a `/games/` A–Z index, linking news posts to games, past releases in the calendar (getGames only returns today onwards).
 - Also possible: a "Where to buy" Gutenberg block so editors can override stores, affiliate tags, more filters.

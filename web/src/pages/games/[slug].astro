@@ -2,7 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import { getGames } from '../../lib/wp';
 import { formatDate } from '../../lib/dates';
-import PlatformIcon from '../../components/PlatformIcon.astro';
+import PlatformList from '../../components/PlatformList.astro';
 import StoreButtons from '../../components/StoreButtons.astro';
 
 export async function getStaticPaths() {
@@ -32,7 +32,7 @@ const facts = [
         {facts.slice(0, 1).map(([k, v]) => (<><dt>{k}</dt><dd>{v}</dd></>))}
         {game.platforms.length > 0 && (<>
           <dt>Platforms</dt>
-          <dd class="platform-list">{game.platforms.map((p) => <a href={`/platform/${p.slug}/`}><PlatformIcon name={p.name} /></a>)}</dd>
+          <dd><PlatformList platforms={game.platforms} links full /></dd>
         </>)}
         {facts.slice(1).map(([k, v]) => (<><dt>{k}</dt><dd>{v}</dd></>))}
       </dl>
@@ -68,9 +68,6 @@ const facts = [
   }
   .facts dt { color: var(--muted); }
   .facts dd { margin: 0; }
-  .platform-list { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
-  .platform-list a { text-decoration: none; }
-  .platform-list a:hover { text-decoration: underline; color: var(--accent-text); }
 
   .content { max-width: 65ch; }
   .content :global(p) { margin: 0 0 1rem; }

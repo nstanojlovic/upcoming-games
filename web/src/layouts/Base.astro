@@ -1,6 +1,6 @@
 ---
 import { getPlatforms } from '../lib/wp';
-import PlatformIcon from '../components/PlatformIcon.astro';
+import { shortName } from '../lib/platforms';
 
 interface Props {
   title: string;
@@ -47,7 +47,7 @@ const sections = [
     </nav>
     <nav class="platform-nav" aria-label="Platforms">
       {platforms.map((p) => (
-        <a href={`/platform/${p.slug}/`} aria-current={current.startsWith(`/platform/${p.slug}`) ? 'page' : undefined}><PlatformIcon name={p.name} /></a>
+        <a href={`/platform/${p.slug}/`} title={p.name} aria-current={current.startsWith(`/platform/${p.slug}`) ? 'page' : undefined}>{shortName(p.name)}</a>
       ))}
     </nav>
   </header>
