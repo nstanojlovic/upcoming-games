@@ -25,6 +25,7 @@ final class Blocks {
 	 * ---------------------------------------------------------------- */
 
 	private const EDITABLE = [
+		'featured'     => [ 'Feature on homepage', 'checkbox' ],
 		'release_date' => [ 'Release date', 'date' ],
 		'release_tba'  => [ 'Date not confirmed (TBA)', 'checkbox' ],
 		'trailer_url'  => [ 'Trailer (YouTube URL)', 'url' ],

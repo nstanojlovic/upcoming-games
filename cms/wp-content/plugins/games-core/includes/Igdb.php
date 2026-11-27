@@ -49,7 +49,8 @@ final class Igdb {
 				cover.image_id, platforms.name, genres.name,
 				involved_companies.developer, involved_companies.publisher, involved_companies.company.name,
 				websites.url, websites.type, videos.video_id,
-				external_games.url, external_games.uid, external_games.category, external_games.external_game_source;
+				external_games.url, external_games.uid, external_games.category, external_games.external_game_source,
+				artworks.image_id, screenshots.image_id;
 			where first_release_date >= {$from_ts} & first_release_date <= {$to_ts}
 				& parent_game = null & version_parent = null;
 			sort hypes desc;
@@ -111,6 +112,7 @@ final class Igdb {
 		$official = array_values( array_filter( $game['websites'] ?? [], fn ( $w ) => (int) ( $w['type'] ?? 0 ) === 1 ) );
 		$video    = $game['videos'][0]['video_id'] ?? null;
 		$cover    = $game['cover']['image_id'] ?? null;
+		$wide     = $game['artworks'][0]['image_id'] ?? $game['screenshots'][0]['image_id'] ?? null;
 
 		return [
 			'id'           => (int) $game['id'],
@@ -121,6 +123,7 @@ final class Igdb {
 			'release_date' => gmdate( 'Y-m-d', (int) $game['first_release_date'] ),
 			'anticipation' => (int) ( $game['hypes'] ?? 0 ),
 			'cover_url'    => $cover ? "https://images.igdb.com/igdb/image/upload/t_cover_big_2x/{$cover}.jpg" : '',
+			'hero_url'     => $wide ? "https://images.igdb.com/igdb/image/upload/t_1080p/{$wide}.jpg" : '',
 			'platforms'    => array_column( $game['platforms'] ?? [], 'name' ),
 			'genres'       => array_column( $game['genres'] ?? [], 'name' ),
 			'developer'    => $company( 'developer' ),

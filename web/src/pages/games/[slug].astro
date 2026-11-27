@@ -70,7 +70,7 @@ const facts = [
   .facts dd { margin: 0; }
   .platform-list { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
   .platform-list a { text-decoration: none; }
-  .platform-list a:hover { text-decoration: underline; color: var(--accent); }
+  .platform-list a:hover { text-decoration: underline; color: var(--accent-text); }
 
   .content { max-width: 65ch; }
   .content :global(p) { margin: 0 0 1rem; }
@@ -81,13 +81,13 @@ const facts = [
     margin: 0 0 1.5rem; padding: 0.6rem 0.9rem;
     border-radius: 6px; background: var(--raised); border: 1px solid var(--line);
   }
-  .content :global(.games-countdown strong) { font-family: var(--display); font-weight: 600; color: var(--accent); }
+  .content :global(.games-countdown strong) { font-family: var(--display); font-weight: 600; color: var(--accent-text); }
   .content :global(.games-countdown time) { color: var(--muted); font-size: 0.9rem; }
   .content :global(.games-trailer) { margin: 0 0 1.5rem; }
   .content :global(.games-trailer iframe) { width: 100%; aspect-ratio: 16 / 9; height: auto; border: 0; border-radius: 6px; }
 
   .links { display: flex; gap: 1.5rem; margin-top: 2rem; }
-  .links a { color: var(--accent); }
+  .links a { color: var(--accent-text); }
 
   @media (max-width: 44rem) {
     .game { grid-template-columns: 1fr; gap: 1.5rem; }

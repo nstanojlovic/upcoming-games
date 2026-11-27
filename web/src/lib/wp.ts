@@ -17,6 +17,8 @@ export type Game = {
   tba: boolean;
   cover: string;
   coverSmall: string;
+  hero: string;
+  featured: boolean;
   developer: string;
   publisher: string;
   website: string;
@@ -97,6 +99,8 @@ async function load(): Promise<Game[]> {
         tba: Boolean(m.release_tba),
         cover,
         coverSmall: cover.replace('t_cover_big_2x', 't_cover_big'),
+        hero: m.hero_url ?? '',
+        featured: Boolean(m.featured),
         developer: m.developer ?? '',
         publisher: m.publisher ?? '',
         website: m.website ?? '',
@@ -110,6 +114,18 @@ async function load(): Promise<Game[]> {
     })
     .filter((g) => g.releaseDate && g.releaseDate >= today)
     .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate) || b.anticipation - a.anticipation);
+}
+
+/** Slider games: editor-featured first; topped up with the most anticipated of the next 60 days. */
+export async function getFeatured(limit = 5): Promise<Game[]> {
+  const games = await getGames();
+  const picked = games.filter((g) => g.featured);
+  const soonest = new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10);
+  const fill = games
+    .filter((g) => !g.featured && g.releaseDate <= soonest && (g.hero || g.cover))
+    .sort((a, b) => b.anticipation - a.anticipation);
+
+  return [...picked, ...fill].slice(0, limit);
 }
 
 export async function getPlatforms(): Promise<(Term & { count: number })[]> {

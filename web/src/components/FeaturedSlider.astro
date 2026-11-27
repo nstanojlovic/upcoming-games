@@ -1,0 +1,160 @@
+---
+/**
+ * Homepage slider. Editor-featured games first (the "Feature on homepage"
+ * checkbox in WordPress), topped up with the most anticipated releases.
+ * Scroll-snap carousel: swipe or arrows, no autoplay.
+ */
+import type { Game } from '../lib/wp';
+import { daysUntil, formatDate } from '../lib/dates';
+import PlatformIcon from './PlatformIcon.astro';
+
+interface Props { games: Game[] }
+const { games } = Astro.props;
+---
+{games.length > 0 && (
+  <section class="featured" aria-roledescription="carousel" aria-label="Featured releases" data-slider>
+    <div class="track" data-track tabindex="0">
+      {games.map((game, i) => {
+        const n = daysUntil(game.releaseDate);
+        return (
+          <article class="slide" aria-roledescription="slide" aria-label={`${i + 1} of ${games.length}: ${game.title}`} data-slide>
+            {(game.hero || game.cover) && (
+              <img class="bg" src={game.hero || game.cover} alt="" width="1920" height="1080" loading={i === 0 ? 'eager' : 'lazy'} fetchpriority={i === 0 ? 'high' : undefined} />
+            )}
+            <div class="shade" aria-hidden="true"></div>
+            <div class="content">
+              {game.cover && <img class="cover" src={game.coverSmall} alt="" width="264" height="374" loading={i === 0 ? 'eager' : 'lazy'} />}
+              <div class="text">
+                {game.featured && <p class="tag">Featured</p>}
+                <h2><a href={`/games/${game.slug}/`}>{game.title}</a></h2>
+                <p class="count" data-countdown={game.releaseDate}>
+                  <span class="num" data-num>{Math.max(n, 0)}</span>
+                  <span class="unit" data-unit>{n <= 0 ? 'Out today' : n === 1 ? 'day to go' : 'days to go'}</span>
+                </p>
+                <p class="when">{formatDate(game.releaseDate, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                {game.platforms.length > 0 && (
+                  <p class="platforms">{game.platforms.slice(0, 5).map((p) => <PlatformIcon name={p.name} />)}</p>
+                )}
+                <a class="cta" href={`/games/${game.slug}/`}>See the game</a>
+              </div>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+
+    {games.length > 1 && (
+      <div class="controls">
+        <button type="button" class="arrow" data-prev aria-label="Previous slide">‹</button>
+        <div class="dots">
+          {games.map((game, i) => (
+            <button type="button" class="dot" data-dot={i} aria-label={`Show ${game.title}`} aria-current={i === 0 ? 'true' : undefined}></button>
+          ))}
+        </div>
+        <button type="button" class="arrow" data-next aria-label="Next slide">›</button>
+      </div>
+    )}
+  </section>
+)}
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-slider]').forEach((root) => {
+    const track = root.querySelector<HTMLElement>('[data-track]')!;
+    const slides = [...root.querySelectorAll<HTMLElement>('[data-slide]')];
+    const dots = [...root.querySelectorAll<HTMLButtonElement>('[data-dot]')];
+    const smooth = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    let current = 0;
+
+    const go = (i: number) => {
+      const n = (i + slides.length) % slides.length;
+      track.scrollTo({ left: slides[n].offsetLeft - track.offsetLeft, behavior: smooth as ScrollBehavior });
+    };
+
+    root.querySelector('[data-prev]')?.addEventListener('click', () => go(current - 1));
+    root.querySelector('[data-next]')?.addEventListener('click', () => go(current + 1));
+    dots.forEach((d, i) => d.addEventListener('click', () => go(i)));
+
+    track.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') { e.preventDefault(); go(current + 1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); go(current - 1); }
+    });
+
+    // Track which slide is in view (covers swipe and scroll, not just buttons).
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        current = slides.indexOf(entry.target as HTMLElement);
+        dots.forEach((d, i) => (i === current ? d.setAttribute('aria-current', 'true') : d.removeAttribute('aria-current')));
+      });
+    }, { root: track, threshold: 0.6 });
+    slides.forEach((s) => io.observe(s));
+  });
+</script>
+
+<style>
+  .featured { position: relative; margin: 0.5rem 0 3rem; }
+  .track {
+    display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+    border-radius: 14px; scrollbar-width: none;
+  }
+  .track::-webkit-scrollbar { display: none; }
+  .track:focus-visible { outline: 3px solid var(--accent-text); outline-offset: 3px; }
+
+  .slide {
+    position: relative; flex: 0 0 100%; scroll-snap-align: start;
+    min-height: clamp(22rem, 42vw, 32rem);
+    display: flex; align-items: flex-end;
+    background: #0B0E10; color: #F2F5F2; overflow: hidden;
+  }
+  .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .shade {
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, rgba(6,9,10,.92) 0%, rgba(6,9,10,.7) 38%, rgba(6,9,10,.15) 75%),
+                linear-gradient(0deg, rgba(6,9,10,.8) 0%, rgba(6,9,10,0) 45%);
+  }
+  .content {
+    position: relative; display: flex; align-items: flex-end; gap: 1.75rem;
+    padding: clamp(1.25rem, 4vw, 2.75rem);
+  }
+  .cover { width: clamp(7rem, 14vw, 11rem); border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,.5); flex: none; }
+  .text { max-width: 34rem; }
+  .tag {
+    display: inline-block; margin: 0 0 0.6rem; padding: 0.15rem 0.55rem; border-radius: 4px;
+    background: var(--accent); color: var(--accent-ink); font-size: 0.78rem; font-weight: 700;
+  }
+  h2 { font-size: clamp(1.6rem, 3.6vw, 2.75rem); line-height: 1.05; letter-spacing: -0.025em; margin: 0; font-weight: 600; }
+  h2 a { color: inherit; text-decoration: none; }
+  h2 a:hover { text-decoration: underline; }
+  .count { display: flex; align-items: baseline; gap: 0.6rem; margin: 1rem 0 0.15rem; }
+  .num {
+    font-family: var(--display); font-weight: 800; line-height: 0.9; letter-spacing: -0.05em;
+    font-size: clamp(3rem, 8vw, 5.5rem); color: var(--accent); font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 28px rgba(77, 255, 94, 0.35);
+  }
+  .unit { font-size: 1.1rem; font-weight: 500; }
+  .when { margin: 0; color: #B9C2BC; }
+  .platforms { display: flex; flex-wrap: wrap; gap: 0.25rem 0.9rem; margin: 0.6rem 0 0; font-size: 0.85rem; color: #D7DED9; }
+  .cta {
+    display: inline-block; margin-top: 1.25rem; padding: 0.65rem 1.15rem; border-radius: 8px;
+    background: var(--accent); color: var(--accent-ink); font-weight: 700; text-decoration: none;
+  }
+  .cta:hover { filter: brightness(1.08); }
+  .cta:focus-visible, h2 a:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+  .controls { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 0.9rem; }
+  .arrow {
+    font: inherit; font-size: 1.3rem; line-height: 1; width: 2.2rem; height: 2.2rem; cursor: pointer;
+    border-radius: 999px; border: 1px solid var(--line); background: var(--raised); color: var(--ink);
+  }
+  .arrow:hover { border-color: var(--accent-text); color: var(--accent-text); }
+  .dots { display: flex; gap: 0.4rem; }
+  .dot { width: 0.6rem; height: 0.6rem; padding: 0; border-radius: 999px; border: 0; cursor: pointer; background: var(--line); }
+  .dot[aria-current] { width: 1.6rem; background: var(--accent); }
+  .arrow:focus-visible, .dot:focus-visible { outline: 3px solid var(--accent-text); outline-offset: 2px; }
+
+  @media (max-width: 44rem) {
+    .content { flex-direction: column; align-items: flex-start; gap: 1rem; }
+    .cover { display: none; }
+    .shade { background: linear-gradient(0deg, rgba(6,9,10,.95) 0%, rgba(6,9,10,.6) 55%, rgba(6,9,10,.2) 100%); }
+  }
+</style>

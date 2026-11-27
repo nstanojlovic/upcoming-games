@@ -1,0 +1,321 @@
+---
+/**
+ * Release listing (weeks, left) + sidebar (genres, platforms, month calendar, right).
+ * Genre filtering runs in the browser; everything else is static HTML.
+ */
+import type { Game, Term } from '../lib/wp';
+import { getPlatforms } from '../lib/wp';
+import { groupByWeek, monthsFor, weekStart } from '../lib/dates';
+import GameCard from './GameCard.astro';
+import PlatformIcon from './PlatformIcon.astro';
+
+interface Props { games: Game[]; title?: string; currentPlatform?: string }
+const { games, title = 'Every release in the next 90 days', currentPlatform } = Astro.props;
+
+const weeks = groupByWeek(games);
+const months = monthsFor(games);
+const platforms = await getPlatforms();
+
+const genreCounts = new Map<string, Term & { count: number }>();
+for (const g of games) for (const genre of g.genres) {
+  const e = genreCounts.get(genre.slug) ?? { ...genre, count: 0 };
+  e.count++;
+  genreCounts.set(genre.slug, e);
+}
+const genres = [...genreCounts.values()].sort((a, b) => b.count - a.count);
+const VISIBLE = 8;
+const today = new Date().toISOString().slice(0, 10);
+---
+<div class="browse" data-browse>
+  <div class="listing">
+    <div class="listing-head">
+      <h2>{title}</h2>
+      <p class="status" aria-live="polite" data-status></p>
+    </div>
+
+    {weeks.length === 0 && <p class="empty">No upcoming releases here yet. The calendar refills every morning.</p>}
+
+    {weeks.map((week) => (
+      <section class="week" id={`w-${week.start}`} aria-labelledby={`wh-${week.start}`} data-week>
+        <header class="spine">
+          <h3 id={`wh-${week.start}`}>{week.range}</h3>
+          <p>{week.label} · <span data-week-count>{week.items.length}</span> <span data-week-noun>{week.items.length === 1 ? 'release' : 'releases'}</span></p>
+        </header>
+        <div class="grid">
+          {week.items.map((game) => <GameCard game={game} />)}
+        </div>
+      </section>
+    ))}
+
+    <p class="empty" data-none hidden>Nothing in these genres in the next 90 days. <button type="button" class="link" data-clear>Show all games</button></p>
+  </div>
+
+  <aside class="sidebar" aria-label="Browse">
+    {genres.length > 1 && (
+      <section class="box">
+        <div class="box-head">
+          <h2 id="genres-title">Genres</h2>
+          <button type="button" class="link small" data-clear hidden>Clear</button>
+        </div>
+        <ul class="genres" role="group" aria-labelledby="genres-title" data-genres-list>
+          {genres.map((g, i) => (
+            <li data-extra={i >= VISIBLE ? '' : undefined}>
+              <button type="button" class="genre" data-genre={g.slug} aria-pressed="false">
+                <span>{g.name}</span><span class="n">{g.count}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        {genres.length > VISIBLE && (
+          <button type="button" class="link small more" data-more aria-expanded="false">
+            Show all {genres.length} genres
+          </button>
+        )}
+      </section>
+    )}
+
+    <section class="box">
+      <h2>Platforms</h2>
+      <ul class="platforms">
+        {currentPlatform && <li><a href="/">All platforms</a></li>}
+        {platforms.map((p) => (
+          <li>
+            <a href={`/platform/${p.slug}/`} aria-current={p.slug === currentPlatform ? 'page' : undefined}>
+              <PlatformIcon name={p.name} /><span class="n">{p.count}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    {months.length > 0 && (
+      <section class="box cal" data-cal>
+        <div class="box-head">
+          <h2 data-cal-label>{months[0].label}</h2>
+          <div class="cal-nav">
+            <button type="button" data-cal-prev aria-label="Previous month" disabled>‹</button>
+            <button type="button" data-cal-next aria-label="Next month" disabled={months.length < 2}>›</button>
+          </div>
+        </div>
+        {months.map((m, i) => (
+          <div class="month" data-month={m.label} hidden={i > 0}>
+            <div class="dow" aria-hidden="true">{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => <span>{d}</span>)}</div>
+            <div class="days">
+              {Array.from({ length: m.offset }).map(() => <span />)}
+              {Array.from({ length: m.days }, (_, d) => {
+                const date = `${m.key}-${String(d + 1).padStart(2, '0')}`;
+                const n = m.counts[date] ?? 0;
+                return n
+                  ? <a href={`#w-${weekStart(date)}`} class="day has" title={`${n} ${n === 1 ? 'release' : 'releases'}`} aria-label={`${d + 1}: ${n} ${n === 1 ? 'release' : 'releases'}`}>{d + 1}</a>
+                  : <span class:list={['day', { past: date < today, today: date === today }]}>{d + 1}</span>;
+              })}
+            </div>
+          </div>
+        ))}
+        <p class="cal-note">Green days have releases. Pick one to jump to its week.</p>
+      </section>
+    )}
+  </aside>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-browse]').forEach((root) => {
+    /* Genre filter */
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-genre]')];
+    const status = root.querySelector<HTMLElement>('[data-status]')!;
+    const none = root.querySelector<HTMLElement>('[data-none]')!;
+    const selected = new Set(new URLSearchParams(location.search).getAll('genre'));
+
+    function apply(updateUrl = true) {
+      buttons.forEach((b) => b.setAttribute('aria-pressed', String(selected.has(b.dataset.genre!))));
+      let total = 0;
+
+      root.querySelectorAll<HTMLElement>('[data-week]').forEach((week) => {
+        let visible = 0;
+        week.querySelectorAll<HTMLElement>('.card').forEach((card) => {
+          const show = selected.size === 0 || (card.dataset.genres ?? '').split(' ').some((g) => selected.has(g));
+          card.hidden = !show;
+          if (show) visible++;
+        });
+        week.hidden = visible === 0;
+        week.querySelector('[data-week-count]')!.textContent = String(visible);
+        week.querySelector('[data-week-noun]')!.textContent = visible === 1 ? 'release' : 'releases';
+        total += visible;
+      });
+
+      root.querySelectorAll<HTMLElement>('.box [data-clear]').forEach((b) => (b.hidden = selected.size === 0));
+      none.hidden = total > 0;
+      status.textContent = selected.size ? `${total} ${total === 1 ? 'game' : 'games'} in ${[...selected].length === 1 ? 'this genre' : 'these genres'}` : '';
+
+      // A selected genre hidden behind "Show all" stays visible.
+      root.querySelectorAll<HTMLElement>('[data-extra]').forEach((li) => {
+        if (selected.has(li.querySelector<HTMLElement>('[data-genre]')!.dataset.genre!)) li.dataset.pinned = '';
+        else delete li.dataset.pinned;
+      });
+
+      if (updateUrl) {
+        const url = new URL(location.href);
+        url.searchParams.delete('genre');
+        selected.forEach((g) => url.searchParams.append('genre', g));
+        history.replaceState(null, '', url);
+      }
+    }
+
+    buttons.forEach((b) => b.addEventListener('click', () => {
+      const g = b.dataset.genre!;
+      selected.has(g) ? selected.delete(g) : selected.add(g);
+      apply();
+    }));
+    root.querySelectorAll<HTMLButtonElement>('[data-clear]').forEach((b) => b.addEventListener('click', () => { selected.clear(); apply(); }));
+    apply(false);
+
+    /* "Show all genres" */
+    const more = root.querySelector<HTMLButtonElement>('[data-more]');
+    const list = root.querySelector<HTMLElement>('[data-genres-list]');
+    more?.addEventListener('click', () => {
+      const open = more.getAttribute('aria-expanded') !== 'true';
+      more.setAttribute('aria-expanded', String(open));
+      list?.toggleAttribute('data-open', open);
+      more.textContent = open ? 'Show fewer' : `Show all ${buttons.length} genres`;
+    });
+
+    /* Month calendar */
+    const cal = root.querySelector<HTMLElement>('[data-cal]');
+    if (cal) {
+      const months = [...cal.querySelectorAll<HTMLElement>('[data-month]')];
+      const label = cal.querySelector<HTMLElement>('[data-cal-label]')!;
+      const prev = cal.querySelector<HTMLButtonElement>('[data-cal-prev]')!;
+      const next = cal.querySelector<HTMLButtonElement>('[data-cal-next]')!;
+      let i = 0;
+      const show = (n: number) => {
+        i = Math.max(0, Math.min(months.length - 1, n));
+        months.forEach((m, j) => (m.hidden = j !== i));
+        label.textContent = months[i].dataset.month!;
+        prev.disabled = i === 0;
+        next.disabled = i === months.length - 1;
+      };
+      prev.addEventListener('click', () => show(i - 1));
+      next.addEventListener('click', () => show(i + 1));
+
+      // Jumping to a week: if a genre filter hides it, clear the filter first.
+      cal.querySelectorAll<HTMLAnchorElement>('a.day').forEach((a) => a.addEventListener('click', () => {
+        const week = root.querySelector<HTMLElement>(a.hash);
+        if (week?.hidden) { selected.clear(); apply(); }
+        week?.classList.remove('flash');
+        requestAnimationFrame(() => week?.classList.add('flash'));
+      }));
+    }
+  });
+</script>
+
+<style>
+  .browse {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 17rem;
+    gap: 3rem;
+    align-items: start;
+  }
+
+  /* Listing */
+  .listing-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1rem; margin-bottom: 0.5rem; }
+  .listing-head h2 { font-size: 1.1rem; font-weight: 600; margin: 0; }
+  .status { margin: 0; color: var(--accent-text); font-size: 0.9rem; font-weight: 600; }
+
+  .week {
+    display: grid;
+    grid-template-columns: 9.5rem 1fr;
+    gap: 1.75rem;
+    padding: 2rem 0;
+    border-top: 1px solid var(--line);
+    scroll-margin-top: 1rem;
+  }
+  .week[hidden] { display: none; }
+  .week:global(.flash) .spine h3 { animation: flash 1.2s ease-out; }
+  @keyframes flash { 0%, 40% { color: var(--accent-text); } 100% { color: inherit; } }
+
+  .spine { position: sticky; top: 1.5rem; align-self: start; }
+  .spine h3 {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 1.6rem;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    margin: 0;
+  }
+  .spine p { margin: 0.4rem 0 0; color: var(--muted); font-size: 0.85rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 1.75rem 1.1rem; }
+  .empty { color: var(--muted); }
+  .empty[hidden] { display: none; }
+
+  /* Sidebar */
+  .sidebar { position: sticky; top: 1.5rem; display: grid; gap: 1rem; }
+  .box { background: var(--raised); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.1rem 1.1rem; }
+  .box h2 { font-size: 0.95rem; font-weight: 600; margin: 0 0 0.6rem; }
+  .box-head { display: flex; align-items: baseline; justify-content: space-between; }
+  .box ul { list-style: none; margin: 0; padding: 0; }
+
+  .genres li[data-extra] { display: none; }
+  .genres[data-open] li[data-extra], .genres li[data-pinned] { display: block; }
+  .genre {
+    width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
+    font: inherit; font-size: 0.92rem; text-align: left; cursor: pointer;
+    padding: 0.35rem 0.55rem; margin: 0 -0.55rem; width: calc(100% + 1.1rem);
+    border: 0; border-radius: 6px; background: none; color: var(--ink);
+  }
+  .genre:hover { background: var(--line); }
+  .genre[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .genre[aria-pressed='true'] .n { color: inherit; }
+  .n { color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+
+  .platforms a {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.3rem 0; text-decoration: none; font-size: 0.92rem;
+  }
+  .platforms a:hover, .platforms a[aria-current='page'] { color: var(--accent-text); }
+  .platforms a[aria-current='page'] { font-weight: 600; }
+
+  .link { font: inherit; color: var(--accent-text); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+  .link[hidden] { display: none; }
+  .small { font-size: 0.85rem; }
+  .more { margin-top: 0.5rem; }
+  .genre:focus-visible, .link:focus-visible, .cal-nav button:focus-visible, .day:focus-visible {
+    outline: 3px solid var(--accent-text); outline-offset: 2px;
+  }
+
+  /* Month calendar */
+  .cal-nav { display: flex; gap: 0.25rem; }
+  .cal-nav button {
+    font: inherit; font-size: 1.1rem; line-height: 1; width: 1.8rem; height: 1.8rem; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 6px; background: none; color: var(--ink);
+  }
+  .cal-nav button:disabled { opacity: 0.35; cursor: default; }
+  .month[hidden] { display: none; }
+  .dow, .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+  .dow { color: var(--muted); font-size: 0.72rem; margin: 0.25rem 0; }
+  .day { display: grid; place-items: center; aspect-ratio: 1; font-size: 0.8rem; border-radius: 6px; font-variant-numeric: tabular-nums; }
+  .day.past { color: var(--muted); opacity: 0.5; }
+  .day.today { outline: 1px solid var(--muted); }
+  a.day.has { background: var(--accent); color: var(--accent-ink); font-weight: 700; text-decoration: none; }
+  a.day.has:hover { filter: brightness(0.92); }
+  .cal-note { margin: 0.75rem 0 0; font-size: 0.8rem; color: var(--muted); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .week:global(.flash) .spine h3 { animation: none; }
+  }
+
+  @media (max-width: 60rem) {
+    .browse { grid-template-columns: 1fr; gap: 1.5rem; }
+    .sidebar { position: static; order: -1; grid-template-columns: 1fr; }
+    .sidebar .cal, .sidebar .box:has(.platforms) { display: none; }
+    .genres { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .genres li[data-extra] { display: none; }
+    .genre { width: auto; margin: 0; border: 1px solid var(--line); border-radius: 999px; padding: 0.3rem 0.75rem; }
+  }
+
+  @media (max-width: 44rem) {
+    .week { grid-template-columns: 1fr; gap: 0.9rem; padding: 1.5rem 0; }
+    .spine { position: static; }
+    .spine h3 { font-size: 1.35rem; }
+    .grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>

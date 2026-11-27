@@ -21,7 +21,7 @@ export function countdownText(ymd: string) {
 }
 
 /** Monday of the week a date falls in, as Y-m-d. */
-function weekStart(ymd: string) {
+export function weekStart(ymd: string) {
   const t = utc(ymd);
   const dow = (new Date(t).getUTCDay() + 6) % 7; // Monday = 0
   return new Date(t - dow * DAY).toISOString().slice(0, 10);
@@ -49,4 +49,32 @@ export function groupByWeek<T extends { releaseDate: string }>(items: T[]): Week
   }
 
   return [...weeks.values()];
+}
+
+export type Month = { key: string; label: string; offset: number; days: number; counts: Record<string, number> };
+
+/** Month grids for the sidebar calendar: from this month to the month of the last release. */
+export function monthsFor<T extends { releaseDate: string }>(items: T[], max = 4): Month[] {
+  const counts: Record<string, number> = {};
+  for (const i of items) counts[i.releaseDate] = (counts[i.releaseDate] ?? 0) + 1;
+
+  const now = new Date();
+  const last = items.at(-1)?.releaseDate ?? now.toISOString().slice(0, 10);
+  const months: Month[] = [];
+
+  for (let i = 0; i < max; i++) {
+    const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1));
+    const key = first.toISOString().slice(0, 7);
+    if (key > last.slice(0, 7)) break;
+    const days = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+    months.push({
+      key,
+      label: first.toLocaleDateString('en-GB', { timeZone: 'UTC', month: 'long', year: 'numeric' }),
+      offset: (first.getUTCDay() + 6) % 7, // Monday-first grid
+      days,
+      counts: Object.fromEntries(Object.entries(counts).filter(([d]) => d.startsWith(key))),
+    });
+  }
+
+  return months;
 }

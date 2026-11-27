@@ -177,6 +177,7 @@ final class Importer {
 		update_post_meta( $post_id, 'source_url', esc_url_raw( $game['url'] ) );
 		update_post_meta( $post_id, 'release_date', $game['release_date'] );
 		update_post_meta( $post_id, 'cover_url', esc_url_raw( $game['cover_url'] ) );
+		update_post_meta( $post_id, 'hero_url', esc_url_raw( $game['hero_url'] ) );
 		update_post_meta( $post_id, 'anticipation', $game['anticipation'] );
 		update_post_meta( $post_id, 'stores', array_map(
 			fn ( $s ) => [ 'store' => sanitize_key( $s['store'] ), 'url' => esc_url_raw( $s['url'] ) ],

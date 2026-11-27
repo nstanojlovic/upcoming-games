@@ -1,75 +1,17 @@
 ---
 import Base from '../layouts/Base.astro';
-import Calendar from '../components/Calendar.astro';
-import { getGames } from '../lib/wp';
-import { daysUntil, formatDate } from '../lib/dates';
-import { shortName } from '../lib/platforms';
+import FeaturedSlider from '../components/FeaturedSlider.astro';
+import Browse from '../components/Browse.astro';
+import { getFeatured, getGames } from '../lib/wp';
 
-const games = await getGames();
-
-// Hero: the most anticipated game out in the next two weeks, else the most anticipated overall.
-const soon = games.filter((g) => daysUntil(g.releaseDate) <= 14);
-const pool = soon.length ? soon : games;
-const next = [...pool].sort((a, b) => b.anticipation - a.anticipation)[0];
-const n = next ? daysUntil(next.releaseDate) : 0;
+const [games, featured] = await Promise.all([getGames(), getFeatured()]);
 ---
-<Base title="Upcoming">
-  {next && (
-    <section class="hero" aria-labelledby="hero-title">
-      <a href={`/games/${next.slug}/`} class="hero-cover">
-        {next.cover && <img src={next.cover} alt="" width="528" height="748" />}
-      </a>
-      <div class="hero-text">
-        <p class="kicker">The big one coming up</p>
-        <h1 id="hero-title"><a href={`/games/${next.slug}/`}>{next.title}</a></h1>
-        <p class="count" data-countdown={next.releaseDate}>
-          <span class="num" data-num>{Math.max(n, 0)}</span>
-          <span class="unit" data-unit>{n <= 0 ? 'Out today' : n === 1 ? 'day to go' : 'days to go'}</span>
-        </p>
-        <p class="when">
-          {formatDate(next.releaseDate, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          {next.platforms.length > 0 && <> on {next.platforms.map((p) => shortName(p.name)).join(', ')}</>}
-        </p>
-        {next.excerpt && <p class="excerpt">{next.excerpt}</p>}
-      </div>
-    </section>
-  )}
-
-  <h2 class="section-title">Every release in the next 90 days</h2>
-  <Calendar games={games} />
+<Base title="Upcoming" image={featured[0]?.hero || featured[0]?.cover}>
+  <h1 class="sr-only">Upcoming video game releases, week by week</h1>
+  <FeaturedSlider games={featured} />
+  <Browse games={games} />
 </Base>
 
 <style>
-  .hero {
-    display: grid;
-    grid-template-columns: minmax(12rem, 20rem) 1fr;
-    gap: 3rem;
-    align-items: center;
-    padding: 2rem 0 4rem;
-  }
-  .hero-cover { display: block; border-radius: 8px; overflow: hidden; background: var(--line); }
-  .kicker { color: var(--muted); margin: 0 0 0.5rem; }
-  h1 { font-size: clamp(2rem, 4.5vw, 3.25rem); line-height: 1.05; letter-spacing: -0.025em; margin: 0; font-weight: 600; }
-  h1 a { text-decoration: none; }
-  h1 a:hover { text-decoration: underline; }
-  .count { display: flex; align-items: baseline; gap: 0.75rem; margin: 1.5rem 0 0.25rem; }
-  .num {
-    font-family: var(--display);
-    font-weight: 800;
-    font-size: clamp(4.5rem, 12vw, 8.5rem);
-    line-height: 0.9;
-    letter-spacing: -0.05em;
-    color: var(--accent);
-    font-variant-numeric: tabular-nums;
-  }
-  .unit { font-size: 1.25rem; font-weight: 500; }
-  .when { margin: 0.5rem 0 0; color: var(--muted); }
-  .excerpt { margin: 1.25rem 0 0; max-width: 52ch; }
-  .section-title { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.5rem; }
-
-  @media (max-width: 44rem) {
-    .hero { grid-template-columns: 8rem 1fr; gap: 1.25rem; padding-top: 0.5rem; align-items: start; }
-    .excerpt { display: none; }
-    .unit { font-size: 1rem; }
-  }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>

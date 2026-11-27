@@ -13,6 +13,8 @@ final class PostTypes {
 		'release_date' => [ 'type' => 'string', 'description' => 'Release date, Y-m-d.' ],
 		'release_tba'  => [ 'type' => 'boolean', 'description' => 'Date is a placeholder (TBA).' ],
 		'cover_url'    => [ 'type' => 'string', 'description' => 'Cover image URL (IGDB CDN).' ],
+		'hero_url'     => [ 'type' => 'string', 'description' => 'Wide artwork or screenshot URL (IGDB CDN), for the homepage slider.' ],
+		'featured'     => [ 'type' => 'boolean', 'description' => 'Show in the homepage slider. Set by an editor.' ],
 		'developer'    => [ 'type' => 'string' ],
 		'publisher'    => [ 'type' => 'string' ],
 		'website'      => [ 'type' => 'string' ],

@@ -97,19 +97,23 @@ const current = Astro.url.pathname;
     --ink: #151824;
     --muted: #5E6578;
     --line: #D5D9E3;
-    --accent: #5B3DF5;
+    --accent: #4DFF5E;        /* slime: fills only (buttons, chips, badges) */
+    --accent-ink: #06210B;    /* text on top of --accent */
+    --accent-text: #0E7A24;   /* green used as text/lines on the page */
     --display: 'Unbounded', system-ui, sans-serif;
     --text: 'Instrument Sans', system-ui, sans-serif;
   }
 
   @media (prefers-color-scheme: dark) {
     :root {
-      --paper: #10121A;
-      --raised: #171A25;
-      --ink: #E8EAF2;
-      --muted: #9AA1B5;
-      --line: #262A38;
-      --accent: #A08FFF;
+      --paper: #0F1214;
+      --raised: #171B1E;
+      --ink: #E9EDEA;
+      --muted: #96A09A;
+      --line: #252B2E;
+      --accent: #4DFF5E;
+      --accent-ink: #06210B;
+      --accent-text: #6BFF78;
     }
   }
 
@@ -128,7 +132,7 @@ const current = Astro.url.pathname;
   img { display: block; max-width: 100%; height: auto; }
 
   a { color: inherit; text-underline-offset: 0.18em; }
-  a:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+  a:focus-visible { outline: 3px solid var(--accent-text); outline-offset: 3px; border-radius: 3px; }
 
   .skip { position: absolute; left: -999px; }
   .skip:focus { left: 1rem; top: 1rem; background: var(--raised); padding: 0.5rem 0.75rem; z-index: 10; }

@@ -1,6 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
-import Calendar from '../../components/Calendar.astro';
+import Browse from '../../components/Browse.astro';
 import { getGames, getPlatforms } from '../../lib/wp';
 
 export async function getStaticPaths() {
@@ -16,7 +16,7 @@ const { platform, games } = Astro.props;
 <Base title={`${platform.name} releases`} description={`Every ${platform.name} game releasing in the next 90 days, week by week.`}>
   <h1>{platform.name}</h1>
   <p class="lede">{games.length} {games.length === 1 ? 'game' : 'games'} coming to {platform.name} in the next 90 days.</p>
-  <Calendar games={games} />
+  <Browse games={games} title="Release calendar" currentPlatform={platform.slug} />
 </Base>
 
 <style>
