@@ -1,0 +1,43 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getNews } from '../../lib/wp';
+import { formatDate } from '../../lib/dates';
+
+export async function getStaticPaths() {
+  const posts = await getNews();
+  return posts.map((post) => ({ params: { slug: post.slug }, props: { post } }));
+}
+
+const { post } = Astro.props;
+---
+<Base title={post.title} description={post.excerpt} image={post.image}>
+  <article class="post">
+    <p class="back"><a href="/news/">← All news</a></p>
+    <p class="meta">
+      <time datetime={post.date}>{formatDate(post.date)}</time>
+      {post.categories.map((c) => <span> · {c.name}</span>)}
+    </p>
+    <h1>{post.title}</h1>
+    {post.image && <img class="hero" src={post.image} alt={post.imageAlt} />}
+    <div class="content" set:html={post.content} />
+  </article>
+</Base>
+
+<style>
+  .post { max-width: 46rem; margin: 0 auto; padding: 1rem 0 2rem; }
+  .back { margin: 0 0 1rem; }
+  .back a { color: var(--muted); text-decoration: none; }
+  .back a:hover { color: var(--ink); text-decoration: underline; }
+  .meta { color: var(--muted); font-size: 0.9rem; margin: 0 0 0.5rem; }
+  h1 { font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1.05; letter-spacing: -0.025em; margin: 0 0 1.5rem; font-weight: 600; }
+  .hero { width: 100%; border-radius: 8px; margin: 0 0 2rem; }
+  .content { max-width: 65ch; }
+  .content :global(p) { margin: 0 0 1rem; }
+  .content :global(h2), .content :global(h3) { line-height: 1.2; margin: 2rem 0 0.75rem; }
+  .content :global(img) { border-radius: 6px; }
+  .content :global(figure) { margin: 1.5rem 0; }
+  .content :global(figcaption) { color: var(--muted); font-size: 0.85rem; margin-top: 0.4rem; }
+  .content :global(a) { color: var(--accent-text); }
+  .content :global(blockquote) { margin: 1.5rem 0; padding-left: 1rem; border-left: 3px solid var(--accent-text); }
+  .content :global(iframe) { max-width: 100%; }
+</style>

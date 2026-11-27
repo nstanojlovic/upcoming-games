@@ -113,6 +113,7 @@ const today = new Date().toISOString().slice(0, 10);
           </div>
         ))}
         <p class="cal-note">Green days have releases. Pick one to jump to its week.</p>
+        <p class="cal-note"><a href="/calendar/" class="full">Open the full calendar →</a></p>
       </section>
     )}
   </aside>
@@ -298,6 +299,7 @@ const today = new Date().toISOString().slice(0, 10);
   a.day.has { background: var(--accent); color: var(--accent-ink); font-weight: 700; text-decoration: none; }
   a.day.has:hover { filter: brightness(0.92); }
   .cal-note { margin: 0.75rem 0 0; font-size: 0.8rem; color: var(--muted); }
+  .cal-note .full { color: var(--accent-text); font-weight: 600; }
 
   @media (prefers-reduced-motion: reduce) {
     .week:global(.flash) .spine h3 { animation: none; }

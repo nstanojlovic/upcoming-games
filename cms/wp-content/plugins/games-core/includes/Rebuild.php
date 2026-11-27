@@ -3,7 +3,7 @@
 namespace GamesCore;
 
 /**
- * Tells the static Astro site to rebuild when game content changes,
+ * Tells the static Astro site to rebuild when games or news posts change,
  * by calling a deploy webhook (e.g. Forge's deployment trigger URL).
  *
  * Set in wp-config.php:  define( 'GAMES_REBUILD_HOOK', 'https://forge.laravel.com/servers/.../deploy/http?token=...' );
@@ -15,6 +15,7 @@ final class Rebuild {
 	public static function register(): void {
 		add_action( 'transition_post_status', [ self::class, 'on_status_change' ], 10, 3 );
 		add_action( 'save_post_game', [ self::class, 'on_save' ], 10, 2 );
+		add_action( 'save_post_post', [ self::class, 'on_save' ], 10, 2 ); // News
 		add_action( 'games_core_deferred_rebuild', fn () => self::trigger( 'deferred' ) );
 	}
 
@@ -28,8 +29,8 @@ final class Rebuild {
 	}
 
 	public static function on_status_change( string $new, string $old, \WP_Post $post ): void {
-		// Publishing or unpublishing a game changes the site either way.
-		if ( $post->post_type === 'game' && ( $new === 'publish' || $old === 'publish' ) && $new !== $old ) {
+		// Publishing or unpublishing a game or news post changes the site either way.
+		if ( in_array( $post->post_type, [ 'game', 'post' ], true ) && ( $new === 'publish' || $old === 'publish' ) && $new !== $old ) {
 			self::trigger( "status {$old} → {$new}" );
 		}
 	}

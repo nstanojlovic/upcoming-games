@@ -139,3 +139,53 @@ export async function getPlatforms(): Promise<(Term & { count: number })[]> {
   }
   return [...counts.values()].sort((a, b) => b.count - a.count);
 }
+
+/* ------------------------------------------------------------------ */
+/* News: plain WordPress posts. Write them in wp-admin → Posts.        */
+/* ------------------------------------------------------------------ */
+
+export type NewsPost = {
+  id: number;
+  slug: string;
+  title: string;
+  excerpt: string;
+  content: string;
+  date: string; // Y-m-d
+  image: string;
+  imageAlt: string;
+  categories: Term[];
+};
+
+let newsCache: Promise<NewsPost[]> | null = null;
+
+/** Published news posts, newest first. Fetched once per build. */
+export function getNews(): Promise<NewsPost[]> {
+  newsCache ??= loadNews();
+  return newsCache;
+}
+
+async function loadNews(): Promise<NewsPost[]> {
+  const [raw, categories] = await Promise.all([
+    getAll<any>('posts', { _embed: 'wp:featuredmedia', orderby: 'date', order: 'desc' }),
+    getAll<Term>('categories', { _fields: 'id,name,slug' }),
+  ]);
+  const catMap = new Map(categories.map((t) => [t.id, { ...t, name: decode(t.name) }]));
+
+  return raw.map((p): NewsPost => {
+    const media = p._embedded?.['wp:featuredmedia']?.[0];
+    const sizes = media?.media_details?.sizes ?? {};
+    return {
+      id: p.id,
+      slug: p.slug,
+      title: decode(p.title.rendered),
+      excerpt: strip(p.excerpt.rendered),
+      content: p.content.rendered,
+      date: String(p.date).slice(0, 10),
+      image: sizes.large?.source_url ?? media?.source_url ?? '',
+      imageAlt: media?.alt_text ?? '',
+      categories: (p.categories ?? [])
+        .map((id: number) => catMap.get(id))
+        .filter((t: Term | undefined): t is Term => Boolean(t) && t!.slug !== 'uncategorized'),
+    };
+  });
+}

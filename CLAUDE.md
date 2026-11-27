@@ -22,18 +22,18 @@ upcoming-games/
 │       │   ├── PostTypes.php    `game` CPT, `platform` + `genre` taxonomies, REST meta, ?orderby=release_date|anticipation, ?after_date=
 │       │   ├── Igdb.php         IGDB client: Twitch token (cached transient), one Apicalypse query, normalize()
 │       │   ├── Importer.php     daily WP-Cron import + Tools → Games import page
-│       │   ├── Rebuild.php      deploy-webhook trigger (1/min lock + one deferred follow-up)
+│       │   ├── Rebuild.php      deploy-webhook trigger on game + news post changes (1/min lock + one deferred follow-up)
 │       │   ├── Blocks.php       registers blocks + "Game details" meta box
 │       │   └── Cli.php          `wp games import`, `wp games rebuild`
 │       └── blocks/{countdown,trailer}/   dynamic blocks, plain JS, no build step (block.json + index.asset.php)
 └── web/                         Astro 7 static site
     └── src/
-        ├── lib/wp.ts            fetch + normalize games from REST (getGames, getFeatured, getPlatforms)
-        ├── lib/dates.ts         UTC date helpers, groupByWeek, monthsFor (sidebar calendar)
+        ├── lib/wp.ts            fetch + normalize from REST (getGames, getFeatured, getPlatforms, getNews)
+        ├── lib/dates.ts         UTC date helpers, groupByWeek, monthsFor (sidebar calendar), calendarMonths (full month grids)
         ├── lib/platforms.ts     short platform labels + device family
         ├── layouts/Base.astro   header/footer, color tokens, countdown script
-        ├── components/          FeaturedSlider, Browse (listing + sidebar + genre filter), GameCard, PlatformIcon, StoreButtons
-        └── pages/               index, games/[slug], platform/[slug], 404
+        ├── components/          FeaturedSlider, Browse (listing + sidebar + genre filter), GameCard, MonthCalendar, PlatformIcon, StoreButtons
+        └── pages/               index, games/[slug], platform/[slug], calendar/ + calendar/[YYYY-MM], news/ + news/[slug], 404
 ```
 
 ## Data model (meta on `game`, all in REST under `meta`)
@@ -75,6 +75,8 @@ Forge server `161.35.174.2` (user `forge`, his personal server, also hosts anone
 ## Open items
 
 - Verify store buttons and slider artwork after a fresh import (both depend on fields added to the importer later; old posts need a re-import).
-- Verify the new slider + sidebar layout renders correctly (written without a local preview).
+- Verify the new slider + sidebar layout, `/calendar/` and `/news/` render correctly (written without a local preview).
 - Deploy (above). Then add the project to anonemus.dev `sideProjects`.
-- Possible next: a "Where to buy" Gutenberg block so editors can override stores, affiliate tags, more filters.
+- Site sections (header nav): **Releases** (`/`, game + platform pages), **Calendar** (month grid like releases.com, platform filter `?platform=`, agenda list on phones), **News** (plain WP posts, featured image + categories; delete the default "Hello world!" post).
+- Possible next: a `/games/` A–Z index, linking news posts to games, past releases in the calendar (getGames only returns today onwards).
+- Also possible: a "Where to buy" Gutenberg block so editors can override stores, affiliate tags, more filters.

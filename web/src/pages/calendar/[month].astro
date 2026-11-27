@@ -1,0 +1,20 @@
+---
+/** /calendar/YYYY-MM/ — months after the current one. */
+import Base from '../../layouts/Base.astro';
+import MonthCalendar from '../../components/MonthCalendar.astro';
+import { getGames } from '../../lib/wp';
+import { calendarMonths } from '../../lib/dates';
+
+export async function getStaticPaths() {
+  const months = calendarMonths(await getGames());
+  const currentKey = new Date().toISOString().slice(0, 7);
+  return months
+    .filter((m) => m.key !== currentKey) // the current month is /calendar/
+    .map((month) => ({ params: { month: month.key }, props: { month, months, currentKey } }));
+}
+
+const { month, months, currentKey } = Astro.props;
+---
+<Base title={`${month.label} game releases`} description={`Every video game releasing in ${month.label}, day by day.`}>
+  <MonthCalendar month={month} months={months} currentKey={currentKey} />
+</Base>

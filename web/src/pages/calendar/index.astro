@@ -1,0 +1,15 @@
+---
+/** /calendar/ — the current month. Later months live at /calendar/YYYY-MM/. */
+import Base from '../../layouts/Base.astro';
+import MonthCalendar from '../../components/MonthCalendar.astro';
+import { getGames } from '../../lib/wp';
+import { calendarMonths } from '../../lib/dates';
+
+// Always has at least the current month, even with no games.
+const months = calendarMonths(await getGames());
+const currentKey = new Date().toISOString().slice(0, 7);
+const month = months[0];
+---
+<Base title="Release calendar" description={`Every video game releasing in ${month.label}, day by day.`}>
+  <MonthCalendar month={month} months={months} currentKey={currentKey} />
+</Base>

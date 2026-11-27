@@ -1,0 +1,248 @@
+---
+/**
+ * Month grid for /calendar/: every release day shows its games
+ * (most anticipated first). Platform filter runs in the browser (?platform=).
+ * Below 44rem the grid turns into an agenda list of release days only.
+ */
+import type { Game, Term } from '../lib/wp';
+import type { CalendarMonth } from '../lib/dates';
+import { formatDate } from '../lib/dates';
+import PlatformIcon from './PlatformIcon.astro';
+
+interface Props { month: CalendarMonth<Game>; months: CalendarMonth<Game>[]; currentKey: string }
+const { month, months, currentKey } = Astro.props;
+
+const href = (key: string) => (key === currentKey ? '/calendar/' : `/calendar/${key}/`);
+const i = months.findIndex((m) => m.key === month.key);
+const prev = months[i - 1];
+const next = months[i + 1];
+
+const platformCounts = new Map<string, Term & { count: number }>();
+for (const week of month.weeks) for (const day of week) for (const g of day.items) for (const p of g.platforms) {
+  const e = platformCounts.get(p.slug) ?? { ...p, count: 0 };
+  e.count++;
+  platformCounts.set(p.slug, e);
+}
+const platforms = [...platformCounts.values()].sort((a, b) => b.count - a.count).slice(0, 8);
+const thumb = (g: Game) => g.cover.replace(/t_cover_big(_2x)?/, 't_cover_small_2x');
+const SHOW = 3; // games per day before "+N more"
+---
+<div class="cal-page" data-calendar>
+  <header class="cal-head">
+    <div class="title">
+      <h1>{month.label}</h1>
+      <p class="count"><span data-total>{month.total}</span> <span data-total-noun>{month.total === 1 ? 'release' : 'releases'}</span></p>
+    </div>
+    <nav class="pager" aria-label="Months">
+      {prev ? <a href={href(prev.key)} rel="prev" aria-label={`Previous month: ${prev.label}`}>‹</a> : <span aria-hidden="true">‹</span>}
+      <ul class="tabs">
+        {months.map((m) => (
+          <li><a href={href(m.key)} aria-current={m.key === month.key ? 'page' : undefined}>{m.short}<span class="n">{m.total}</span></a></li>
+        ))}
+      </ul>
+      {next ? <a href={href(next.key)} rel="next" aria-label={`Next month: ${next.label}`}>›</a> : <span aria-hidden="true">›</span>}
+    </nav>
+  </header>
+
+  {platforms.length > 1 && (
+    <div class="filters" role="group" aria-label="Filter by platform">
+      <button type="button" class="chip" data-platform="" aria-pressed="true">All platforms</button>
+      {platforms.map((p) => (
+        <button type="button" class="chip" data-platform={p.slug} aria-pressed="false"><PlatformIcon name={p.name} /></button>
+      ))}
+    </div>
+  )}
+
+  <div class="grid" role="list">
+    <div class="dow" aria-hidden="true">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <span>{d}</span>)}</div>
+    {month.weeks.flat().map((day) => (
+      <section
+        role="listitem"
+        class:list={['day', { out: !day.inMonth, past: day.past, today: day.today, empty: day.items.length === 0 }]}
+        aria-label={day.inMonth ? formatDate(day.date, { weekday: 'long', day: 'numeric', month: 'long' }) : undefined}
+        aria-hidden={day.inMonth ? undefined : 'true'}
+        data-day
+      >
+        <h2 class="date">
+          <span class="num">{day.day}</span>
+          <span class="long">{formatDate(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+          {day.today && <span class="today-tag">Today</span>}
+        </h2>
+        {day.items.length > 0 && (
+          <ul class="games">
+            {day.items.map((g, n) => (
+              <li data-platforms={g.platforms.map((p) => p.slug).join(' ')} data-extra={n >= SHOW ? '' : undefined}>
+                <a href={`/games/${g.slug}/`} title={g.platforms.map((p) => p.name).join(', ')}>
+                  {g.cover
+                    ? <img src={thumb(g)} alt="" width="45" height="64" loading="lazy" decoding="async" />
+                    : <span class="no-cover" aria-hidden="true">{g.title.slice(0, 1)}</span>}
+                  <span class="name">{g.title}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+        {day.items.length > SHOW && (
+          <button type="button" class="more" data-more aria-expanded="false">+{day.items.length - SHOW} more</button>
+        )}
+      </section>
+    ))}
+  </div>
+
+  <p class="empty" data-none hidden>Nothing for this platform in {month.label}. <button type="button" class="link" data-reset>Show all platforms</button></p>
+  {month.total === 0 && <p class="empty">No releases dated for {month.label} yet.</p>}
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-calendar]').forEach((root) => {
+    const SHOW = 3;
+    const chips = [...root.querySelectorAll<HTMLButtonElement>('[data-platform]')];
+    const days = [...root.querySelectorAll<HTMLElement>('[data-day]')];
+    const none = root.querySelector<HTMLElement>('[data-none]')!;
+    let platform = new URLSearchParams(location.search).get('platform') ?? '';
+    if (platform && !chips.some((c) => c.dataset.platform === platform)) platform = '';
+
+    function apply(updateUrl = true) {
+      chips.forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.platform === platform)));
+      let total = 0;
+
+      days.forEach((day) => {
+        const items = [...day.querySelectorAll<HTMLElement>('li[data-platforms]')];
+        const open = day.hasAttribute('data-open');
+        let visible = 0;
+        items.forEach((li) => {
+          const match = !platform || li.dataset.platforms!.split(' ').includes(platform);
+          if (match) visible++;
+          li.hidden = !match || (!open && visible > SHOW);
+        });
+        total += visible;
+        day.classList.toggle('empty', visible === 0);
+
+        const more = day.querySelector<HTMLButtonElement>('[data-more]');
+        if (more) {
+          more.hidden = visible <= SHOW;
+          more.textContent = open ? 'Show fewer' : `+${visible - SHOW} more`;
+          more.setAttribute('aria-expanded', String(open));
+        }
+      });
+
+      root.querySelector('[data-total]')!.textContent = String(total);
+      root.querySelector('[data-total-noun]')!.textContent = total === 1 ? 'release' : 'releases';
+      none.hidden = total > 0 || !platform;
+
+      // Carry the filter over to the other months.
+      root.querySelectorAll<HTMLAnchorElement>('.pager a').forEach((a) => {
+        const url = new URL(a.href);
+        platform ? url.searchParams.set('platform', platform) : url.searchParams.delete('platform');
+        a.href = url.pathname + url.search;
+      });
+
+      if (updateUrl) {
+        const url = new URL(location.href);
+        platform ? url.searchParams.set('platform', platform) : url.searchParams.delete('platform');
+        history.replaceState(null, '', url);
+      }
+    }
+
+    chips.forEach((c) => c.addEventListener('click', () => { platform = c.dataset.platform!; apply(); }));
+    root.querySelector('[data-reset]')?.addEventListener('click', () => { platform = ''; apply(); });
+    days.forEach((day) => day.querySelector('[data-more]')?.addEventListener('click', () => {
+      day.toggleAttribute('data-open');
+      apply(false);
+    }));
+
+    root.classList.add('js');
+    apply(false);
+  });
+</script>
+
+<style>
+  .cal-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 1rem 2rem; margin: 1rem 0 1.25rem; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: clamp(2rem, 5vw, 3.25rem); line-height: 1; letter-spacing: -0.03em; margin: 0; }
+  .count { margin: 0.4rem 0 0; color: var(--muted); }
+
+  .pager { display: flex; align-items: center; gap: 0.5rem; }
+  .pager > a, .pager > span {
+    display: grid; place-items: center; width: 2.2rem; height: 2.2rem; font-size: 1.3rem; line-height: 1;
+    border: 1px solid var(--line); border-radius: 8px; text-decoration: none;
+  }
+  .pager > span { opacity: 0.35; }
+  .pager > a:hover { border-color: var(--accent-text); color: var(--accent-text); }
+  .tabs { display: flex; gap: 0.25rem; list-style: none; margin: 0; padding: 0; }
+  .tabs a {
+    display: flex; align-items: baseline; gap: 0.35rem; padding: 0.4rem 0.7rem; border-radius: 8px;
+    text-decoration: none; font-weight: 600; font-size: 0.95rem;
+  }
+  .tabs a:hover { background: var(--raised); }
+  .tabs a[aria-current='page'] { background: var(--accent); color: var(--accent-ink); }
+  .tabs .n { font-weight: 400; font-size: 0.78rem; opacity: 0.75; font-variant-numeric: tabular-nums; }
+
+  .filters { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1.25rem; }
+  .chip {
+    font: inherit; font-size: 0.88rem; cursor: pointer; color: var(--ink);
+    padding: 0.3rem 0.75rem; border: 1px solid var(--line); border-radius: 999px; background: var(--raised);
+  }
+  .chip:hover { border-color: var(--muted); }
+  .chip[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+  /* Grid */
+  .grid {
+    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+    border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--line); gap: 1px;
+  }
+  .dow { display: contents; }
+  .dow span { background: var(--raised); padding: 0.45rem 0.6rem; font-size: 0.78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .day { background: var(--paper); min-height: 8.5rem; padding: 0.45rem 0.45rem 0.55rem; min-width: 0; }
+  .day.out { background: var(--raised); }
+  .day.out .num { opacity: 0.35; }
+  .day.past:not(.out) .num { color: var(--muted); }
+  .day.today { box-shadow: inset 0 0 0 2px var(--accent-text); }
+
+  .date { display: flex; align-items: center; gap: 0.4rem; margin: 0 0 0.35rem; font-size: inherit; font-weight: inherit; }
+  .num { font-family: var(--display); font-weight: 600; font-size: 0.85rem; font-variant-numeric: tabular-nums; padding-left: 0.15rem; }
+  .long { display: none; }
+  .today-tag { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; background: var(--accent); color: var(--accent-ink); padding: 0.05rem 0.4rem; border-radius: 4px; }
+
+  .games { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+  .games li[hidden] { display: none; }
+  .cal-page:not(.js) .more { display: none; } /* without JS every game is listed */
+  .games a { display: flex; align-items: center; gap: 0.45rem; text-decoration: none; border-radius: 5px; padding: 0.15rem; }
+  .games a:hover { background: var(--raised); }
+  .games a:hover .name { text-decoration: underline; }
+  .games img, .no-cover { flex: none; width: 1.75rem; aspect-ratio: 45 / 64; height: auto; object-fit: cover; border-radius: 3px; background: var(--line); }
+  .no-cover { display: grid; place-items: center; font-family: var(--display); font-size: 0.75rem; color: var(--muted); }
+  .name {
+    font-size: 0.8rem; line-height: 1.25; font-weight: 500; min-width: 0;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+
+  .more { font: inherit; font-size: 0.78rem; font-weight: 600; color: var(--accent-text); background: none; border: 0; padding: 0.25rem 0.2rem 0; cursor: pointer; text-decoration: underline; }
+  .more[hidden] { display: none; }
+  .chip:focus-visible, .more:focus-visible, .link:focus-visible, .games a:focus-visible, .pager a:focus-visible, .tabs a:focus-visible {
+    outline: 3px solid var(--accent-text); outline-offset: 2px;
+  }
+
+  .empty { color: var(--muted); margin-top: 1.5rem; }
+  .empty[hidden] { display: none; }
+  .link { font: inherit; color: var(--accent-text); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+
+  @media (max-width: 60rem) {
+    .tabs { display: none; }
+    .day { min-height: 7rem; }
+    .games img, .no-cover { display: none; }
+  }
+
+  /* Phones: agenda list of release days only */
+  @media (max-width: 44rem) {
+    .grid { display: block; background: none; border: 0; overflow: visible; }
+    .dow, .day.out, .day.empty { display: none; }
+    .day { min-height: 0; padding: 1rem 0; border-top: 1px solid var(--line); background: none; }
+    .day.today { box-shadow: none; }
+    .num { display: none; }
+    .long { display: inline; font-family: var(--display); font-weight: 600; font-size: 1rem; }
+    .games { gap: 0.5rem; }
+    .games img, .no-cover { display: grid; width: 2.5rem; }
+    .name { font-size: 0.95rem; }
+  }
+</style>

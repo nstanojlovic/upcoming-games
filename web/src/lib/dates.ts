@@ -78,3 +78,52 @@ export function monthsFor<T extends { releaseDate: string }>(items: T[], max = 4
 
   return months;
 }
+
+export type CalendarDay<T> = { date: string; day: number; inMonth: boolean; past: boolean; today: boolean; items: T[] };
+export type CalendarMonth<T> = { key: string; label: string; short: string; total: number; weeks: CalendarDay<T>[][] };
+
+/**
+ * Full month grids for the /calendar/ pages: Monday-first, padded with the
+ * neighbouring months' days so every row has 7 cells. From this month to the
+ * month of the last release (at most `max` months).
+ */
+export function calendarMonths<T extends { releaseDate: string }>(items: T[], max = 6): CalendarMonth<T>[] {
+  const byDate = new Map<string, T[]>();
+  for (const i of items) byDate.set(i.releaseDate, [...(byDate.get(i.releaseDate) ?? []), i]);
+
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const last = items.at(-1)?.releaseDate ?? today;
+  const months: CalendarMonth<T>[] = [];
+
+  for (let m = 0; m < max; m++) {
+    const first = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + m, 1);
+    const key = new Date(first).toISOString().slice(0, 7);
+    if (key > last.slice(0, 7)) break;
+
+    const lastDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + m + 1, 0);
+    const start = first - ((new Date(first).getUTCDay() + 6) % 7) * DAY;   // Monday on/before the 1st
+    const end = lastDay + (6 - ((new Date(lastDay).getUTCDay() + 6) % 7)) * DAY; // Sunday on/after the last
+
+    const weeks: CalendarDay<T>[][] = [];
+    let total = 0;
+    for (let t = start; t <= end; t += DAY) {
+      const date = new Date(t).toISOString().slice(0, 10);
+      const inMonth = date.startsWith(key);
+      const dayItems = inMonth ? byDate.get(date) ?? [] : [];
+      total += dayItems.length;
+      if ((t - start) % (7 * DAY) === 0) weeks.push([]);
+      weeks.at(-1)!.push({ date, day: +date.slice(8), inMonth, past: date < today, today: date === today, items: dayItems });
+    }
+
+    months.push({
+      key,
+      label: new Date(first).toLocaleDateString('en-GB', { timeZone: 'UTC', month: 'long', year: 'numeric' }),
+      short: new Date(first).toLocaleDateString('en-GB', { timeZone: 'UTC', month: 'short' }),
+      total,
+      weeks,
+    });
+  }
+
+  return months;
+}

@@ -12,6 +12,13 @@ const { title, description = 'Upcoming video game releases for the next 90 days,
 const fullTitle = title === 'Upcoming' ? 'Upcoming: game releases, week by week' : `${title} · Upcoming`;
 const platforms = (await getPlatforms()).slice(0, 6);
 const current = Astro.url.pathname;
+
+// Main sections. "Releases" also owns game and platform pages.
+const sections = [
+  { href: '/', label: 'Releases', active: current === '/' || current.startsWith('/games/') || current.startsWith('/platform/') },
+  { href: '/calendar/', label: 'Calendar', active: current.startsWith('/calendar/') },
+  { href: '/news/', label: 'News', active: current.startsWith('/news/') },
+];
 ---
 <!doctype html>
 <html lang="en">
@@ -33,7 +40,12 @@ const current = Astro.url.pathname;
 
   <header class="site-header">
     <a href="/" class="wordmark">Upcoming</a>
-    <nav aria-label="Platforms">
+    <nav class="sections" aria-label="Main">
+      {sections.map((s) => (
+        <a href={s.href} aria-current={s.active ? (current === s.href ? 'page' : 'true') : undefined}>{s.label}</a>
+      ))}
+    </nav>
+    <nav class="platform-nav" aria-label="Platforms">
       {platforms.map((p) => (
         <a href={`/platform/${p.slug}/`} aria-current={current.startsWith(`/platform/${p.slug}`) ? 'page' : undefined}><PlatformIcon name={p.name} /></a>
       ))}
@@ -151,7 +163,11 @@ const current = Astro.url.pathname;
 
   .site-header nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; font-size: 0.95rem; }
   .site-header nav a { color: var(--muted); text-decoration: none; }
-  .site-header nav a:hover, .site-header nav a[aria-current='page'] { color: var(--ink); text-decoration: underline; }
+  .site-header nav a:hover, .site-header nav a[aria-current] { color: var(--ink); text-decoration: underline; }
+
+  .sections { font-weight: 600; }
+  .sections a[aria-current] { text-decoration: none !important; box-shadow: inset 0 -3px 0 var(--accent); }
+  .platform-nav { margin-left: auto; }
 
   .site-footer {
     max-width: 76rem; margin: 5rem auto 0; padding: 1.5rem 1.5rem 3rem;
